@@ -6,7 +6,7 @@ local ok_ssl, ssl = pcall(require, "ssl")
 local sys = require("core.sys")
 
 local net = {}
-net.user_agent = "KindleEinkApps/1.0 (+https://github.com/; KUAL)"
+net.user_agent = "KUALGamesAndUtils/1.0 (+https://github.com/colonket/kual-games-and-utils)"
 net.cafile = nil
 net.insecure = false     -- Settings' "skip certificate checks"; never applies to net.always_verify
 net.timeout = 25

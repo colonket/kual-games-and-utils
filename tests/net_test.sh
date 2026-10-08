@@ -3,8 +3,8 @@
 # against tests/mock_web.py.  usage: tests/net_test.sh   (WEB_PORT default 8747)
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT="$HERE/../extension/einkapps"
-LUAJIT=${LUAJIT:-/home/claude/opt/luajit/bin/luajit}
-LUA_OPT=${LUA_OPT:-/home/claude/opt/lua}
+LUAJIT=${LUAJIT:-luajit}
+LUA_OPT=${LUA_OPT:-}   # optional prefix holding share/?.lua and lib/?.so (LuaSocket, LuaSec)
 export WEB_PORT=${WEB_PORT:-8747}
 LOG=$(mktemp)
 python3 "$HERE/mock_web.py" $WEB_PORT 2>"$LOG" & WEB=$!

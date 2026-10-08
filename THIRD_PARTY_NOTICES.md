@@ -1,6 +1,6 @@
 # Third-party notices
 
-KUAL Tabletop Apps' own code is MIT-licensed (see `LICENSE`). It builds on the work below, whose licenses still apply to those parts.
+KUAL Games & Utilities' own code is MIT-licensed (see `LICENSE`). It builds on the work below, whose licenses still apply to those parts.
 
 ## CrossPoint Apps / CrossPoint Reader (MIT)
 

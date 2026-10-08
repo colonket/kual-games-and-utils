@@ -27,12 +27,16 @@ from PIL import Image, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "extension", "einkapps", "assets")
-DEJAVU = "/usr/share/fonts/truetype/dejavu/"
-POPPINS = "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf"
-PIECES_SVG = "/home/claude/assets-src/lila/public/piece/cburnett/"
-SVG2RAW = "/home/claude/tools/svg2raw"
-CROSSPOINT = "/home/claude/src/crosspoint-reader-apps/"
-CACERT = "/home/claude/assets-src/python-certifi/certifi/cacert.pem"
+# Sources. Override any of these with an environment variable of the same name.
+# ASSETS_SRC is the folder holding checkouts of lila (Lichess), python-certifi
+# and crosspoint-reader-apps, plus the svg2raw helper.
+SRC = os.environ.get("ASSETS_SRC", os.path.expanduser("~/assets-src"))
+DEJAVU = os.environ.get("DEJAVU", "/usr/share/fonts/truetype/dejavu/")
+POPPINS = os.environ.get("POPPINS", "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf")
+PIECES_SVG = os.environ.get("PIECES_SVG", os.path.join(SRC, "lila/public/piece/cburnett/"))
+SVG2RAW = os.environ.get("SVG2RAW", os.path.join(SRC, "svg2raw"))
+CROSSPOINT = os.environ.get("CROSSPOINT", os.path.join(SRC, "crosspoint-reader-apps/"))
+CACERT = os.environ.get("CACERT", os.path.join(SRC, "python-certifi/certifi/cacert.pem"))
 
 
 def rng(a, b):

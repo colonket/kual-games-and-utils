@@ -95,7 +95,7 @@ App id `ogs`, title **"Go (OGS)"**. Scope:
   - Client to server: `[command, data]` or `[command, data, request_id]` when expecting a reply.
   - Server to client: `[event_name, data]`, or `[request_id, data, error]` as a reply.
 - Right after connecting, send:
-  `["authenticate", {"jwt": user_jwt, "device_id": "<stable random id>", "user_agent": "KUAL Tabletop Apps", "language": "en"}]`
+  `["authenticate", {"jwt": user_jwt, "device_id": "<stable random id>", "user_agent": "KUAL Games & Utilities", "language": "en"}]`
 - Keepalive: every 20 s send `["net/ping", {"client": now_ms, "drift": 0, "latency": 0}]`. The server answers with `net/pong`.
 - Commands sent to the server:
 

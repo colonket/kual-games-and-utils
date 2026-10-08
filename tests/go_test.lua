@@ -1,5 +1,5 @@
 -- Unit tests for apps/lib/go.lua.
--- Run from the repo root: /home/claude/opt/luajit/bin/luajit tests/go_test.lua
+-- Run from the repo root: luajit tests/go_test.lua
 package.path = "extension/einkapps/lua/?.lua;" .. package.path
 local go = require("apps.lib.go")
 local B, W, E = go.BLACK, go.WHITE, go.EMPTY

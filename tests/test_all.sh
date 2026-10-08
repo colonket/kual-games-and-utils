@@ -5,7 +5,7 @@
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT="$HERE/.."
 OUT=${SIM_OUT:-/tmp/sim_all}
-LUAJIT=${LUAJIT:-/home/claude/opt/luajit/bin/luajit}
+LUAJIT=${LUAJIT:-luajit}
 SUMMARY=""
 FAILED=0
 

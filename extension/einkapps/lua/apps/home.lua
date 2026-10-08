@@ -26,7 +26,7 @@ function M.new()
         local bat = kindle.battery()
         local right = {}
         right[1] = { os.date("%H:%M") .. (bat and ("  " .. bat .. "%") or ""), nil, font = "sans", size = 30 }
-        local top = ctx:header("Tabletop Apps", { back = function() ui.quit() end, back_label = "✕", right = right })
+        local top = ctx:header("Games & Utilities", { back = function() ui.quit() end, back_label = "✕", right = right })
         local cols = 3
         local gap = dp(22)
         local n = #registry.apps

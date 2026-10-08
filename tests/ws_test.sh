@@ -3,8 +3,8 @@
 # usage: tests/ws_test.sh   (WS_PORT/WSS_PORT default 8723/8724)
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT="$HERE/../extension/einkapps"
-LUAJIT=${LUAJIT:-/home/claude/opt/luajit/bin/luajit}
-LUA_OPT=${LUA_OPT:-/home/claude/opt/lua}
+LUAJIT=${LUAJIT:-luajit}
+LUA_OPT=${LUA_OPT:-}   # optional prefix holding share/?.lua and lib/?.so (LuaSocket, LuaSec)
 export WS_PORT=${WS_PORT:-8723} WSS_PORT=${WSS_PORT:-8724}
 TMP=$(mktemp -d)
 # self-signed cert for 127.0.0.1 (+ an unrelated CA to check rejection)

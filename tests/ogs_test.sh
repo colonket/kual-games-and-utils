@@ -5,8 +5,8 @@
 # usage: tests/ogs_test.sh     (OGS_PORT default 8722, SIM_OUT default /tmp/sim_ogs_rt)
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT="$HERE/../extension/einkapps"
-LUAJIT=${LUAJIT:-/home/claude/opt/luajit/bin/luajit}
-LUA_OPT=${LUA_OPT:-/home/claude/opt/lua}
+LUAJIT=${LUAJIT:-luajit}
+LUA_OPT=${LUA_OPT:-}   # optional prefix holding share/?.lua and lib/?.so (LuaSocket, LuaSec)
 OGS_PORT=${OGS_PORT:-8722}
 LOG=${OGS_MOCK_LOG:-/tmp/mock_ogs_$OGS_PORT.log}
 python3 "$HERE/mock_ogs.py" $OGS_PORT 2>"$LOG" & MOCK=$!

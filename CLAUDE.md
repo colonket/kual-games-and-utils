@@ -1,4 +1,4 @@
-# CLAUDE.md — KUAL Tabletop Apps
+# CLAUDE.md — KUAL Games & Utilities
 
 Touch apps for jailbroken Kindles, launched from KUAL. The main target is a Kindle Paperwhite 3 (7th gen) on FW 5.16.2.1.1 (1072×1448, 300 dpi). Everything is plain Lua and runs on the **LuaJIT that ships with KOReader** (`/mnt/us/koreader/luajit`). There is no build step on the device.
 
@@ -63,20 +63,22 @@ Contracts and protocol notes are in `docs/ogs/SPEC.md`.
 - **Bots.** The bot list comes from the socket's `active-bots` push (cached on RT, read with `api.bots()`), and `api.bot_check` mirrors online-go.com's `getAcceptableTimeSetting` (minus its inverted `allow_unranked` check). Presets are OGS's Play-page clocks. After `POST /players/{bot}/challenge`, send `challenge/keepalive` every second and `game/connect`; gamedata means accepted, a `gameOfferRejected` notification means declined. Details in `docs/ogs/SPEC.md`.
 - **Scoring.** The local provisional score comes from `go.score`, which under area rules gives white komi plus the handicap. The final score comes from the server: `{black={total=}, white={total=}}`.
 
-## Not yet verified on real hardware
+## Verified on real hardware, and what isn't yet
 
-Ask the user for `extensions/einkapps/data/log.txt` when something breaks. These are still unverified on a real Kindle:
+Ask the user for `extensions/einkapps/data/log.txt` when something breaks.
 
-- touch coordinates and orientation on the PW3 (there are touch swap/mirror toggles in Settings, and a Touch test screen)
-- whether `fbink -s` refreshes look right, and the flash cadence
-- the `lipc-wait-event` sleep/wake handling
+Verified on a PW3 (FW 5.16.2.1.1) on 2026-10-08: every app launches from KUAL, touch lands where tapped with the default (no swap/mirror) settings, `fbink -s` partial refreshes draw correctly, and TLS (chain + hostname checks) works against the real services. On real online-go.com: sign-in with the OAuth password grant, the lobby (`/api/v1/ui/overview` active games), the WebSocket handshake and `authenticate`, and a full game against a bot.
 
-Not yet verified against real online-go.com (only against `tests/mock_ogs.py`):
+Still unverified on a real Kindle:
 
-- the OAuth password grant with a Public client (no secret), and token refresh
-- the `/api/v1/ui/overview` shapes: `active_games[].json`, the challenge objects, and whether incoming challenges appear there or only in `/me/challenges`
+- the `lipc-wait-event` sleep/wake handling, and whether the default flash cadence is the right trade-off
+
+Still unverified against real online-go.com (only against `tests/mock_ogs.py`):
+
+- OAuth token refresh
+- incoming challenge objects, and whether they appear in `/api/v1/ui/overview` or only in `/me/challenges`
 - what `POST /me/challenges/{id}/accept` returns. The app looks for `game_id`/`game`; if it finds neither, it reloads the lobby.
-- the WebSocket handshake through OGS's proxy (Origin header, TLS via LuaSec on wss), `authenticate` acceptance, and whether `net/pong` keeps the 65 s dead-socket check happy
+- whether `net/pong` keeps the 65 s dead-socket check happy over a long live game
 - the clock shapes for byo-yomi, Canadian and paused (weekend) correspondence clocks
 - the `removed_stones` strings that include empty points (dame). We parse them, but we only toggle stone groups ourselves.
 - `strict_seki_mode` and accept semantics when the opponent changes stones after we accepted
@@ -84,7 +86,7 @@ Not yet verified against real online-go.com (only against `tests/mock_ogs.py`):
 
 ## Running the simulator (desktop)
 
-The simulator needs LuaJIT, LuaSocket and LuaSec built locally. `tests/sim.sh` assumes they live in `/home/claude/opt/...`; adjust the paths for your machine.
+The simulator needs LuaJIT with LuaSocket and LuaSec (for example `luarocks --lua-version 5.1 install luasocket luasec`). The scripts run `luajit` from `PATH`; set `LUAJIT=/path/to/luajit` to use another one, and `LUA_OPT=<prefix>` if the Lua modules live in `<prefix>/share/?.lua` and `<prefix>/lib/?.so` instead of LuaJIT's default paths.
 
 ```bash
 tests/run_all.sh                       # ported apps vs tests/mock_web.py (canned HTTP)
@@ -97,7 +99,7 @@ tests/test_all.sh                      # everything above + OGS/Go/ws, ports 874
 The OGS tests run against `tests/mock_ogs.py <port>`. It serves REST and the WebSocket on one port; log in with client `test-client`, user `kindle` and password `hunter2`. The test hooks are `GET /_mock/state` and `POST /_mock/{opponent_move/<gid>,drop,expire,reset}`.
 
 ```bash
-/home/claude/opt/luajit/bin/luajit tests/go_test.lua   # rules engine unit tests
+luajit tests/go_test.lua                               # rules engine unit tests
 tests/ws_test.sh                                       # WebSocket client vs echo servers (ws + wss)
 tests/ogs_test.sh                                      # api.lua + RT against the mock
 PNG=1 tests/ogs_e2e.sh /tmp/sim_ogs [W H DPI]          # the real app end to end; MODE=redirect uses EINK_NET_REDIRECT

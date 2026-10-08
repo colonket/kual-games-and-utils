@@ -1,5 +1,5 @@
 #!/bin/sh
-# KUAL launcher for Tabletop Apps. Usage: run.sh <app-id>
+# KUAL launcher for Games & Utilities. Usage: run.sh <app-id>
 # Runs the apps with KOReader's LuaJIT while the Kindle UI is paused,
 # the same way KOReader itself starts from KUAL.
 
@@ -19,7 +19,7 @@ msg() {
 }
 
 if [ ! -x "${KO_DIR}/luajit" ] && [ ! -f "${KO_DIR}/luajit" ]; then
-    msg "Tabletop Apps needs KOReader in /mnt/us/koreader"
+    msg "Games & Utilities needs KOReader in /mnt/us/koreader"
     exit 1
 fi
 

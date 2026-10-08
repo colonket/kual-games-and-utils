@@ -1,4 +1,4 @@
-# KUAL Tabletop Apps
+# KUAL Games & Utilities
 
 A suite of touch apps for jailbroken Kindles, launched from KUAL:
 
@@ -61,7 +61,7 @@ These are frames from the simulator at the Paperwhite 3's native 1072×1448, the
 
 1. Download this repository (Code → Download ZIP) and unzip it.
 2. Connect the Kindle over USB and copy the `extension/einkapps` folder into the Kindle's `extensions` folder, so you end up with `extensions/einkapps/config.xml` on the Kindle.
-3. Eject the Kindle, open **KUAL** and pick **Tabletop Apps → App launcher**. Each app also has its own menu entry.
+3. Eject the Kindle, open **KUAL** and pick **Games & Utilities → App launcher**. Each app also has its own menu entry.
 
 To leave an app, tap **‹** in the top-left corner. To exit from the launcher, tap **✕**. The Kindle home screen comes back afterwards.
 
@@ -147,7 +147,15 @@ Then register it:
 - Add an entry to `lua/apps/registry.lua`.
 - Optionally add a line to `menu.json`.
 
-The repository includes a desktop simulator for scripted tests (`tests/sim.sh`, and `tests/test_all.sh` for the whole suite). It needs a local LuaJIT, LuaSocket and LuaSec. After a `test_all.sh` run, `tools/screenshots.py` refreshes the README screenshots in `docs/screenshots/`.
+The repository includes a desktop simulator for scripted tests (`tests/sim.sh`, and `tests/test_all.sh` for the whole suite). It needs LuaJIT with LuaSocket and LuaSec, plus Python 3 for the mock servers; set `LUAJIT` if `luajit` isn't on your `PATH`. After a `test_all.sh` run, `tools/screenshots.py` refreshes the README screenshots in `docs/screenshots/`.
+
+## Disclaimer
+
+This is an unofficial hobby project. It isn't affiliated with or endorsed by Amazon, Lichess or online-go.com; Kindle is a trademark of Amazon.com, Inc. Jailbreaking can void your warranty and, if something goes wrong, leave a Kindle needing recovery, so do it only if you're comfortable with that. The apps run with full (root) access on the device, the same as KOReader and other KUAL extensions. Use Lichess and OGS according to their terms; engine assistance is not allowed in rated or human games. Provided as is, without warranty (see [LICENSE](LICENSE)).
+
+## Security
+
+Please report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## Credits & licenses
 
