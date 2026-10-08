@@ -28,6 +28,7 @@ run ogs_e2e_600    env OGS_PORT=8746 MODE=redirect "$HERE/ogs_e2e.sh" "${OUT}_og
 run ogs_ui_stub    "$HERE/sim.sh" calculator "$HERE/scripts/ogs_ui.lua" "${OUT}_ogs_ui"
 run goboard_demo   "$HERE/sim.sh" calculator "$HERE/scripts/goboard_demo.lua" "${OUT}_goboard"
 run mtg            "$HERE/sim.sh" mtg "$HERE/mtg_script.lua" "${OUT}_mtg"
+run home           "$HERE/sim.sh" home "$HERE/scripts/home.lua" "${OUT}_home"
 
 # Lichess against its mock (needs a saved token)
 python3 "$HERE/mock_lichess.py" 8741 2>"${OUT}_mock_lichess.log" & LI=$!
