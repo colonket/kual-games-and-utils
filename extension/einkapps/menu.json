@@ -21,8 +21,16 @@
      "internal": "status Starting Lichess . . ."
     },
     {
-     "name": "Life Counter (MTG)",
+     "name": "Go (OGS)",
      "priority": 2,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "ogs",
+     "status": false,
+     "internal": "status Starting Go (OGS) . . ."
+    },
+    {
+     "name": "Life Counter (MTG)",
+     "priority": 3,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "mtg",
      "status": false,
@@ -30,7 +38,7 @@
     },
     {
      "name": "Chess",
-     "priority": 3,
+     "priority": 4,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "chess",
      "status": false,
@@ -38,7 +46,7 @@
     },
     {
      "name": "Sudoku",
-     "priority": 4,
+     "priority": 5,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "sudoku",
      "status": false,
@@ -46,7 +54,7 @@
     },
     {
      "name": "Dice & 8-Ball",
-     "priority": 5,
+     "priority": 6,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "dice",
      "status": false,
@@ -54,7 +62,7 @@
     },
     {
      "name": "Calculator",
-     "priority": 6,
+     "priority": 7,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "calculator",
      "status": false,
@@ -62,7 +70,7 @@
     },
     {
      "name": "Clock",
-     "priority": 7,
+     "priority": 8,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "clock",
      "status": false,
@@ -70,7 +78,7 @@
     },
     {
      "name": "Weather",
-     "priority": 8,
+     "priority": 9,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "weather",
      "status": false,
@@ -78,7 +86,7 @@
     },
     {
      "name": "Wikipedia",
-     "priority": 9,
+     "priority": 10,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "wikipedia",
      "status": false,
@@ -86,7 +94,7 @@
     },
     {
      "name": "RSS & Reddit",
-     "priority": 10,
+     "priority": 11,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "rss",
      "status": false,
@@ -94,7 +102,7 @@
     },
     {
      "name": "DuckDuckGo",
-     "priority": 11,
+     "priority": 12,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "duckduckgo",
      "status": false,
@@ -102,7 +110,7 @@
     },
     {
      "name": "Settings & touch test",
-     "priority": 12,
+     "priority": 13,
      "action": "/mnt/us/extensions/einkapps/bin/run.sh",
      "params": "settings",
      "status": false,
