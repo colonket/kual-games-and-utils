@@ -22,6 +22,7 @@ cd "$ROOT" || exit 1
 run run_all        env WEB_PORT=8740 SIM_OUT="${OUT}_apps" "$HERE/run_all.sh"
 run go_test        "$LUAJIT" "$HERE/go_test.lua"
 run ws_test        env WS_PORT=8743 WSS_PORT=8744 "$HERE/ws_test.sh"
+run net_test       env WEB_PORT=8747 "$HERE/net_test.sh"
 run ogs_test       env OGS_PORT=8742 SIM_OUT="${OUT}_ogs_rt" "$HERE/ogs_test.sh"
 run ogs_e2e        env OGS_PORT=8745 "$HERE/ogs_e2e.sh" "${OUT}_ogs_e2e"
 run ogs_e2e_600    env OGS_PORT=8746 MODE=redirect "$HERE/ogs_e2e.sh" "${OUT}_ogs_e2e600" 600 800 167

@@ -116,8 +116,9 @@ end
 local function token_request(form)
     local ok, oerr = api.ensure_online()
     if not ok then return nil, oerr end
+    -- no_redirect: this body holds the password or refresh token; never replay it elsewhere
     local resp, err = net.request({
-        method = "POST", url = api.base .. "/oauth2/token/",
+        method = "POST", url = api.base .. "/oauth2/token/", no_redirect = true,
         headers = { Accept = "application/json" }, body = net.form(form),
     })
     if not resp then return nil, err end

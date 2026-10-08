@@ -190,13 +190,26 @@ if CERT and net.has_tls() then
         check(next_msg(sx) == "t1" and next_msg(sx) == "t2", "wss two frames")
         sx.conn:close()
     end
+    -- trusted cert, wrong name: the cert is for IP 127.0.0.1, not "localhost"
+    local sn, en = open("wss://localhost:" .. WSS_PORT .. "/")
+    check(sn.conn == nil and tostring(en):find("not for localhost"), "cert for another name rejected: " .. tostring(en))
     -- wrong trust anchor: must fail verification
     local other = os.getenv("WS_OTHER_CA")
     if other then
         net.cafile = other
         local sy, ey = open("wss://127.0.0.1:" .. WSS_PORT .. "/")
         check(sy.conn == nil and tostring(ey):find("tls"), "untrusted cert rejected: " .. tostring(ey))
+        -- Settings' "skip certificate checks" lets it through, but only for unprotected hosts
+        net.insecure = true
+        local si, ei = open("wss://127.0.0.1:" .. WSS_PORT .. "/")
+        check(si.conn ~= nil, "insecure mode accepts an untrusted cert: " .. tostring(ei))
+        if si.conn then si.conn:close() end
+        net.insecure = false
     end
+    -- no CA bundle: fail closed instead of connecting unverified
+    net.cafile = "/nonexistent/cacert.pem"
+    local sm, em = open("wss://127.0.0.1:" .. WSS_PORT .. "/")
+    check(sm.conn == nil and tostring(em):find("bundle missing"), "missing CA bundle fails closed: " .. tostring(em))
     net.cafile = nil
 else
     io.stderr:write("skip: TLS tests (no WS_CERT or LuaSec)\n")
