@@ -78,7 +78,7 @@ Not yet verified against real online-go.com (only against `tests/mock_ogs.py`):
 - the clock shapes for byo-yomi, Canadian and paused (weekend) correspondence clocks
 - the `removed_stones` strings that include empty points (dame). We parse them, but we only toggle stone groups ourselves.
 - `strict_seki_mode` and accept semantics when the opponent changes stones after we accepted
-- bots: when the server sends `active-bots` (on connect or only after `authenticate`), the real config contents, and the `gameOfferRejected` notification shape
+- bots: the `gameOfferRejected` notification shape (a real game against kata-bot on 2026-10-08 confirmed the `active-bots` list, real configs passing `api.bot_check`, and keepalive -> gamedata -> game)
 
 ## Running the simulator (desktop)
 
