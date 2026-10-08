@@ -1,5 +1,7 @@
 # KUAL Games & Utilities
 
+> **Written by AI.** All of the code, tests and documentation in this repository were written by [Claude Code](https://claude.com/claude-code), Anthropic's AI coding agent. I ([@colonket](https://github.com/colonket)) directed the work, tested it on a real Kindle, and decided what to merge. See [How this was made](#how-this-was-made).
+
 A suite of touch apps for jailbroken Kindles, launched from KUAL:
 
 - **Lichess**: play rapid, classical and correspondence games against people, plus any time control against Stockfish or friends. It uses the official Board API.
@@ -156,6 +158,17 @@ This is an unofficial hobby project. It isn't affiliated with or endorsed by Ama
 ## Security
 
 Please report security problems privately as described in [SECURITY.md](SECURITY.md).
+
+## How this was made
+
+Every line of code, every test and all of the documentation here was written by [Claude Code](https://claude.com/claude-code), not by a person. That includes the Kindle display and touch layer, the Lichess and OGS clients, the WebSocket client, the simulator and its mock servers, the security fixes, and this README. My part was choosing what to build, running it on a Kindle Paperwhite 3, reporting what broke (with the device's logs), and deciding what to merge. Every commit except the merge commits carries a `Co-Authored-By: Claude` trailer, back to the first one.
+
+Two kinds of material weren't originated by Claude Code:
+
+- The calculator, dice, sudoku, chess, clock, weather, Wikipedia, RSS and DuckDuckGo apps are Claude Code's ports of [CrossPoint Apps](https://github.com/zakerytclarke/crosspoint-reader-apps), which people wrote (see below).
+- The fonts, chess pieces and CA list are third-party assets, used under the licenses listed below.
+
+It has been tested with the scripted simulator suite and on one real device (a Paperwhite 3). Bug reports and code reviews are welcome.
 
 ## Credits & licenses
 
