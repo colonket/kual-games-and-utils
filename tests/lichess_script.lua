@@ -1,0 +1,33 @@
+local S = require("simlib")
+local ui = require("core.ui")
+local function top_is(field) return function() local t = ui.top(); return t and t[field] ~= nil end end
+return {
+  S.wait_until(function() return require("apps.lichess.app").session.events_ok end, 5000),
+  S.wait(900),
+  S.snap("01_lobby"),
+  S.tap_text("Play the computer"),
+  S.snap("02_ai"),
+  S.tap_text("Start game"),
+  S.wait_until(function() local t = ui.top(); return t and t.full ~= nil end, 5000),
+  S.snap("03_game_start"),
+  S.tap_square("e2"),
+  S.snap("04_selected"),
+  S.tap_square("e4"),
+  S.wait_until(function() local t = ui.top(); return t.pos and #t.pos.history == 2 end, 5000),
+  S.snap("05_after_reply"),
+  S.tap_square("g1"), S.tap_square("f3"),
+  S.wait_until(function() local t = ui.top(); return t.pos and #t.pos.history == 4 end, 5000),
+  S.wait(300),
+  S.snap("06_draw_offer"),
+  S.tap_text("Decline"),
+  S.wait(300),
+  S.snap("06b_after_decline"),
+  S.tap_text("Resign"),
+  S.snap("07_confirm"),
+  S.tap_text("Resign"),
+  S.wait_until(function() local t = ui.top(); return t.over end, 5000),
+  S.snap("08_over"),
+  S.tap_text("Back to lobby"),
+  S.tap_text("Ongoing games"),
+  S.snap("09_ongoing"),
+}

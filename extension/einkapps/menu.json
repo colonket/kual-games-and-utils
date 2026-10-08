@@ -1,0 +1,114 @@
+{
+ "items": [
+  {
+   "name": "Tabletop Apps",
+   "priority": 0,
+   "items": [
+    {
+     "name": "App launcher",
+     "priority": 0,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "home",
+     "status": false,
+     "internal": "status Starting App launcher . . ."
+    },
+    {
+     "name": "Lichess",
+     "priority": 1,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "lichess",
+     "status": false,
+     "internal": "status Starting Lichess . . ."
+    },
+    {
+     "name": "Life Counter (MTG)",
+     "priority": 2,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "mtg",
+     "status": false,
+     "internal": "status Starting Life Counter (MTG) . . ."
+    },
+    {
+     "name": "Chess",
+     "priority": 3,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "chess",
+     "status": false,
+     "internal": "status Starting Chess . . ."
+    },
+    {
+     "name": "Sudoku",
+     "priority": 4,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "sudoku",
+     "status": false,
+     "internal": "status Starting Sudoku . . ."
+    },
+    {
+     "name": "Dice & 8-Ball",
+     "priority": 5,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "dice",
+     "status": false,
+     "internal": "status Starting Dice & 8-Ball . . ."
+    },
+    {
+     "name": "Calculator",
+     "priority": 6,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "calculator",
+     "status": false,
+     "internal": "status Starting Calculator . . ."
+    },
+    {
+     "name": "Clock",
+     "priority": 7,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "clock",
+     "status": false,
+     "internal": "status Starting Clock . . ."
+    },
+    {
+     "name": "Weather",
+     "priority": 8,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "weather",
+     "status": false,
+     "internal": "status Starting Weather . . ."
+    },
+    {
+     "name": "Wikipedia",
+     "priority": 9,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "wikipedia",
+     "status": false,
+     "internal": "status Starting Wikipedia . . ."
+    },
+    {
+     "name": "RSS & Reddit",
+     "priority": 10,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "rss",
+     "status": false,
+     "internal": "status Starting RSS & Reddit . . ."
+    },
+    {
+     "name": "DuckDuckGo",
+     "priority": 11,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "duckduckgo",
+     "status": false,
+     "internal": "status Starting DuckDuckGo . . ."
+    },
+    {
+     "name": "Settings & touch test",
+     "priority": 12,
+     "action": "/mnt/us/extensions/einkapps/bin/run.sh",
+     "params": "settings",
+     "status": false,
+     "internal": "status Starting Settings & touch test . . ."
+    }
+   ]
+  }
+ ]
+}

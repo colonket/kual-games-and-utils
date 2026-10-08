@@ -1,0 +1,7 @@
+# runtime data written on the Kindle / in the simulator
+extension/einkapps/data/*
+!extension/einkapps/data/README.txt
+*.pgm
+*.tmp
+__pycache__/
+dist/

@@ -1,0 +1,5 @@
+extension/einkapps/assets/cacert.pem
+
+The Mozilla CA certificate bundle as packaged by certifi
+(https://github.com/certifi/python-certifi), distributed unmodified under the
+Mozilla Public License 2.0: https://mozilla.org/MPL/2.0/
