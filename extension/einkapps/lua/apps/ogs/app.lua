@@ -90,6 +90,7 @@ function session.ensure_rt(quiet)
     local rt = api.realtime()
     if rt.connected then return rt end
     if not quiet then ui.busy("Connecting…") end
+    rt.tries = 0 -- a user action: start the retry budget over
     local ok, err = rt:connect()
     if not rt.connected then
         ui.log("ogs rt: " .. tostring(err or ok))
@@ -549,20 +550,22 @@ GameScreen = function(id, info)
         local mv = d.move or {}
         local x, y = mv[1], mv[2]
         if x == nil then return end
-        local n = d.move_number or (self.nmoves + 1)
-        if self.sent and n == self.sent.n then
+        -- move_number counts moves including this one (goban checks
+        -- getMoveNumber() == move_number - 1), handicap placements included.
+        local n = tonumber(d.move_number)
+        local sent = self.sent
+        if sent and (n == sent.n or (n == nil and sent.x == x and sent.y == y)) then
             -- the server echoed our own move
-            local same = (self.sent.x == x and self.sent.y == y)
             self.sent, self.before = nil, nil
-            if not same then self:resync() end
+            if sent.x ~= x or sent.y ~= y then return self:resync() end
             return ui.redraw()
         end
+        n = n or (self.nmoves + 1)
         if n <= self.nmoves then return end
         if n > self.nmoves + 1 then return self:resync() end
         local ok = self.g:play(x, y)
         if not ok then return self:resync() end
         self.nmoves = n
-        if self.gd and self.gd.moves then self.gd.moves[#self.gd.moves + 1] = mv end
         self.pending = nil
         ui.redraw()
     end
@@ -639,7 +642,14 @@ GameScreen = function(id, info)
             end,
         }
         for ev, fn in pairs(h) do rt:on(pre .. ev, fn) end
-        self.handlers, self.subscribed = h, true
+        -- socket state (RT reconnects by itself and re-sends game/connect,
+        -- which brings fresh gamedata)
+        local st = {
+            ["rt/connected"] = function() self.offline = nil; ui.redraw_quiet() end,
+            ["rt/disconnected"] = function(reason) self.offline = tostring(reason or "offline"); ui.redraw_quiet() end,
+        }
+        for ev, fn in pairs(st) do rt:on(ev, fn) end
+        self.handlers, self.state_handlers, self.subscribed = h, st, true
     end
 
     function scr:unsubscribe()
@@ -647,21 +657,17 @@ GameScreen = function(id, info)
         local rt = api.realtime()
         local pre = "game/" .. tostring(self.id) .. "/"
         for ev, fn in pairs(self.handlers) do rt:off(pre .. ev, fn) end
+        for ev, fn in pairs(self.state_handlers or {}) do rt:off(ev, fn) end
         self.subscribed = false
     end
 
+    -- Join the game's realtime channel. From here on RT owns the socket: it
+    -- retries with backoff and re-sends game/connect after reconnecting.
     function scr:connect()
-        local rt, err = session.ensure_rt(true)
-        if not rt then
-            self.offline = err or "offline"
-            ui.after(10000, function()
-                if self.visible and self.phase ~= "finished" and not api.realtime().connected then self:connect() end
-            end, self)
-            return ui.redraw()
-        end
-        self.offline = nil
+        local rt = api.realtime()
         self:subscribe()
-        rt:game_connect(self.id)
+        local ok, err = rt:game_connect(self.id)
+        self.offline = (not rt.connected) and tostring(err or "offline") or nil
         ui.redraw()
     end
 
@@ -689,8 +695,9 @@ GameScreen = function(id, info)
         self.visible = false
         ui.cancel_owner(self)
         self:unsubscribe()
+        -- always: also drops the game from RT's reconnect list when offline
         local rt = api.realtime()
-        if rt.connected then pcall(rt.game_disconnect, rt, self.id) end
+        pcall(rt.game_disconnect, rt, self.id)
         session.open_games[self.id] = nil
         kindle.prevent_screensaver(false)
     end
@@ -698,10 +705,14 @@ GameScreen = function(id, info)
         -- Wi-Fi dropped while asleep: reload over REST, then rejoin the socket.
         ui.after(1500, function()
             if not self.visible then return end
-            local rt = api.realtime()
-            if rt.connected then pcall(rt.close, rt) end
             self:resync()
-            self:connect()
+            -- the old socket is probably dead: let RT open a fresh one (it
+            -- re-joins this game); don't game_connect again ourselves
+            local rt = api.realtime()
+            if not self.subscribed then return self:connect() end
+            local ok, err = rt:reconnect()
+            self.offline = (not rt.connected) and tostring(err or "offline") or nil
+            ui.redraw()
         end, self)
     end
 
@@ -770,7 +781,7 @@ GameScreen = function(id, info)
             ui.toast("Not connected: " .. tostring(err))
             return
         end
-        if not self.subscribed then self:connect() end
+        if not self.subscribed or not rt.games[self.id] then self:connect() end
         self.before = self.g:copy()
         local ok, why = self.g:play(x, y)
         if not ok then
@@ -814,6 +825,8 @@ GameScreen = function(id, info)
 
     function scr:toggle_dead(x, y)
         if not self.g then return end
+        -- OGS toggles whole empty regions (dame); we only toggle stone groups
+        if self.g:at(x, y) == go.EMPTY then return ui.toast("Tap a group of stones to mark it dead or alive") end
         local before = {}
         for i in pairs(self.dead) do before[i] = true end
         local changed, now_dead = go.toggle_group_dead(self.g, self.dead, x, y)
@@ -931,8 +944,10 @@ GameScreen = function(id, info)
         end
         local tx = x + pad + 2 * r + dp(14)
         local name = (p.username or "?")
-        if scr.my_color == color then name = name .. " (you)" end
-        nf:draw_top(s, tx, ry - math.floor(nf.height / 2), nf:ellipsize(name, x + w - cw - tx - dp(8)), BLACK)
+        local avail = x + w - cw - tx - dp(8)
+        -- " (you)" only when it fits; the card's bold border marks you anyway
+        if scr.my_color == color and nf:width(name .. " (you)") <= avail then name = name .. " (you)" end
+        nf:draw_top(s, tx, ry - math.floor(nf.height / 2), nf:ellipsize(name, avail), BLACK)
         local sf = ui.font("sans", CARD_SF)
         local caps = scr.g and scr.g.captures and scr.g.captures[color] or 0
         local parts = {}

@@ -16,6 +16,7 @@ api.user_agent = "KUAL Tabletop Apps"
 api.REFRESH_MARGIN = 7 * 86400      -- refresh tokens with less than a week left
 api.PING_MS = 20000
 api.RECONNECT_MS = { 2000, 5000, 15000 }
+api.MAX_RECONNECTS = 12                -- about 2.5 minutes of retries, then wait for the user
 api.cfg = nil
 
 local NS = "ogs"
@@ -522,11 +523,19 @@ local function game_connect_msg(id)
 end
 
 -- Fetch the JWT, open the socket, authenticate, start pinging.
-function RT:connect()
+-- opts.background: a timer-driven retry. It must not block for long, so it
+-- doesn't try to switch Wi-Fi on (that waits up to 25 s).
+function RT:connect(opts)
     if self.conn and not self.conn.closed and self.connected then return true end
     if self.reconnect_timer then ui.cancel(self.reconnect_timer) self.reconnect_timer = nil end
     self.closing = false
-    local ok, err = api.ensure_online()
+    local ok, err
+    if opts and opts.background then
+        ok = kindle.wifi_connected()
+        err = "Wi-Fi is off or not connected."
+    else
+        ok, err = api.ensure_online()
+    end
     if not ok then self:_schedule_reconnect() return nil, err end
     local conf, cerr = api.ui_config()
     if type(conf) ~= "table" or not conf.user_jwt then
@@ -557,6 +566,7 @@ function RT:connect()
     })
     self.connected = true
     self.tries = 0
+    self.connected_at = sys.now()
     ui.add_stream(conn)
     if not self.ping_timer then
         self.ping_timer = ui.every(api.PING_MS, function() self:_ping() end)
@@ -584,6 +594,15 @@ end
 
 function RT:_schedule_reconnect()
     if self.closing or self.reconnect_timer or not next(self.games) then return end
+    if self.tries >= api.MAX_RECONNECTS then
+        -- Give up quietly; the next user action (move, reload, wake) retries.
+        if self.tries == api.MAX_RECONNECTS then
+            self.tries = self.tries + 1
+            log("giving up reconnecting")
+            self:emit("rt/gave_up", true)
+        end
+        return
+    end
     self.tries = self.tries + 1
     local delays = api.RECONNECT_MS
     local delay = delays[math.min(self.tries, #delays)]
@@ -591,8 +610,24 @@ function RT:_schedule_reconnect()
     self.reconnect_timer = ui.after(delay, function()
         self.reconnect_timer = nil
         if self.closing or self.connected then return end
-        self:connect()
+        self:connect({ background = true })
     end)
+end
+
+-- Drop the current socket (it may be dead after sleep) and open a fresh one,
+-- keeping the connected games: connect() re-sends game/connect for each.
+-- Several screens may ask at once on wake; one fresh socket is enough.
+function RT:reconnect()
+    if self.connected and self.connected_at and sys.now() - self.connected_at < 1000 then return true end
+    if self.reconnect_timer then ui.cancel(self.reconnect_timer) self.reconnect_timer = nil end
+    local conn = self.conn
+    self.conn, self.connected, self.callbacks = nil, false, {}
+    if conn then
+        conn:close("reconnect")   -- its on_close sees a stale conn and does nothing
+        ui.remove_stream(conn)
+    end
+    self.tries = 0
+    return self:connect()
 end
 
 function RT:_ping()
@@ -616,7 +651,10 @@ end
 
 function RT:game_connect(id)
     self.games[id] = true
-    if not self.connected then return self:connect() end
+    if not self.connected then
+        self.tries = 0
+        return self:connect()
+    end
     return self:send("game/connect", game_connect_msg(id))
 end
 
