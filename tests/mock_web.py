@@ -58,6 +58,22 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self): self.do_GET()
     def do_GET(self):
         u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query); p = u.path
+        # core/net.lua tests (tests/net_test.lua)
+        if p == "/_echo":
+            n = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(n).decode() if n else ""
+            return self.send(200, {"method": self.command, "path": self.path, "body": body,
+                                   "headers": {k.lower(): v for k, v in self.headers.items()}})
+        if p == "/_redir":
+            self.send_response(int(q.get("code", ["302"])[0])); self.send_header("Location", q["to"][0])
+            self.send_header("Content-Length", "0"); self.end_headers(); return
+        if p == "/_nolength":
+            n = int(q.get("n", ["0"])[0])
+            self.send_response(200); self.send_header("Content-Type", "text/plain"); self.end_headers()
+            self.close_connection = True
+            while n > 0:
+                k = min(n, 65536); self.wfile.write(b"x" * k); n -= k
+            return
         if p.startswith("/api.open-meteo.com/v1/forecast"): return self.send(200, FORECAST)
         if p.startswith("/geocoding-api.open-meteo.com"): return self.send(200, GEO)
         if p.startswith("/en.wikipedia.org/w/api.php"):

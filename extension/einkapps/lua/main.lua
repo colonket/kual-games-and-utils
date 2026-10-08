@@ -30,10 +30,16 @@ local net = require("core.net")
 
 ui.init(root)
 store.init(root .. "/data")
-local settings = store.load("settings", { flash_every = 24, insecure_tls = false })
+local settings = store.load("settings", { flash_every = 24 })
 display.flash_every = settings.flash_every or 24
 net.cafile = root .. "/assets/cacert.pem"
-net.insecure = settings.insecure_tls and true or false
+-- "Skip HTTPS certificate checks" only lasts until the app exits; older
+-- versions saved it, so clear it here
+net.insecure = false
+if settings.insecure_tls ~= nil then
+    settings.insecure_tls = nil
+    store.save("settings", settings)
+end
 
 local ok, info = input.init(display.w, display.h, settings)
 if not ok then

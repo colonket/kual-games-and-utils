@@ -46,6 +46,9 @@ Touch apps for jailbroken Kindles, launched from KUAL. The main target is a Kind
 - **Don't set `LD_LIBRARY_PATH` to `koreader/libs` in `run.sh`.** Child processes like `lipc-set-prop` would load KOReader's libraries. LuaJIT's RPATH already finds `koreader/libs` for `ssl.so`.
 - **Event structs use `long` timevals**: 16 bytes on the 32-bit Kindle and 24 on x86_64. FFI handles this.
 - **The Lichess Board API only allows rapid, classical and correspondence seeks.** Blitz is OK against the AI and in direct challenges. UCI castling may arrive as king-takes-rook; `Pos:find_uci` handles that.
+- **LuaSec checks the certificate chain but NOT the hostname.** `net.lua` `verify_host` matches the peer's subjectAltName (DNS or IP) against the dialled host; keep it. Verified on the PW3 (LuaSec 1.3.2): without it `wrong.host.badssl.com` was accepted. TLS is fail-closed when `net.cafile` is missing, and `net.insecure` (Settings, session-only) never applies to `net.always_verify` hosts.
+- **Redirects:** `net.request` follows them via `net.redirect_policy`: credentials (Authorization/Cookie) are dropped on any change of scheme, host or port, HTTPS->HTTP is refused when there are credentials or a body, and a body is never resent to another origin. The OAuth token request uses `no_redirect`.
+- **`/var/tmp` on the Kindle is world-writable without the sticky bit** and `run.sh` runs as root: never write fixed names there (the framebuffer dump uses `mktemp`).
 - **`ui.redraw_quiet()`** is for ticking clocks so they don't count toward the periodic ghost-clearing flash.
 
 ## OGS (Go) app
@@ -67,7 +70,6 @@ Ask the user for `extensions/einkapps/data/log.txt` when something breaks. These
 - touch coordinates and orientation on the PW3 (there are touch swap/mirror toggles in Settings, and a Touch test screen)
 - whether `fbink -s` refreshes look right, and the flash cadence
 - the `lipc-wait-event` sleep/wake handling
-- LuaSec certificate verification on the device
 
 Not yet verified against real online-go.com (only against `tests/mock_ogs.py`):
 

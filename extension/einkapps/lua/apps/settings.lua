@@ -47,12 +47,11 @@ local function TouchTest()
 end
 
 function M.new()
-    local cfg = store.load("settings", { flash_every = 24, insecure_tls = false })
+    local cfg = store.load("settings", { flash_every = 24 })
     local scr = {}
     local function save()
         store.save("settings", cfg)
         display.flash_every = cfg.flash_every
-        net.insecure = cfg.insecure_tls and true or false
     end
 
     function scr:render(ctx)
@@ -70,10 +69,16 @@ function M.new()
         y = y + rh + dp(6)
         ctx:toggle(x, y, w, rh, "Touch: mirror Y (restart app)", cfg.touch_mirror_y, function(v) cfg.touch_mirror_y = v or nil; save(); ui.redraw() end)
         y = y + rh + dp(6)
-        ctx:toggle(x, y, w, rh, "Skip HTTPS certificate checks", cfg.insecure_tls, function(v)
-            cfg.insecure_tls = v; save(); ui.redraw()
+        -- not saved: it switches itself off when the app closes
+        ctx:toggle(x, y, w, rh, "Skip HTTPS certificate checks", net.insecure, function(v)
+            net.insecure = v and true or false; ui.redraw()
         end)
-        y = y + rh + dp(24)
+        y = y + rh
+        if net.insecure then
+            y = y + ctx:paragraph(x, y, w, "Unsafe on shared Wi-Fi. Turns off when you close the app, and never applies to OGS or Lichess.",
+                { font = ui.font("sans", 24), color = DARK })
+        end
+        y = y + dp(24)
         ctx:button_row(x, y, w, ui.BTN_H, {
             { "Touch test", function() ui.push(TouchTest()) end, { size = 34 } },
             { "View log", function()

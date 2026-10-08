@@ -34,7 +34,10 @@ echo "=== $(date) run.sh ${APP}" >>"${LOG}"
 
 # Pause the Kindle UI so it doesn't draw over us (same steps as koreader.sh).
 usleep 250000 2>/dev/null || sleep 1
-cat /dev/fb0 >/var/tmp/einkapps-fb.dump 2>/dev/null
+# /var/tmp is world-writable without the sticky bit on the Kindle, so never
+# write to a fixed name there as root (a planted symlink would redirect it).
+FB_DUMP=$(mktemp /var/tmp/einkapps-fb.XXXXXX 2>/dev/null) || FB_DUMP=""
+[ -n "${FB_DUMP}" ] && cat /dev/fb0 >"${FB_DUMP}" 2>/dev/null
 lipc-set-prop com.lab126.pillow disableEnablePillow disable 2>/dev/null
 killall -STOP awesome 2>/dev/null
 STOPPED_STATUSBAR=no
@@ -46,10 +49,10 @@ cleanup() {
     lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
     [ "${STOPPED_STATUSBAR}" = "yes" ] && start statusbar >/dev/null 2>&1
     killall -CONT awesome 2>/dev/null
-    if [ -f /var/tmp/einkapps-fb.dump ]; then
-        cat /var/tmp/einkapps-fb.dump >/dev/fb0 2>/dev/null
-        rm -f /var/tmp/einkapps-fb.dump
+    if [ -n "${FB_DUMP}" ] && [ -f "${FB_DUMP}" ] && [ ! -L "${FB_DUMP}" ]; then
+        cat "${FB_DUMP}" >/dev/fb0 2>/dev/null
     fi
+    [ -n "${FB_DUMP}" ] && rm -f "${FB_DUMP}"
     lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
     lipc-set-prop com.lab126.appmgrd start app://com.lab126.booklet.home 2>/dev/null
 }

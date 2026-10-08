@@ -8,8 +8,11 @@ local sys = require("core.sys")
 local net = {}
 net.user_agent = "KindleEinkApps/1.0 (+https://github.com/; KUAL)"
 net.cafile = nil
-net.insecure = false
+net.insecure = false     -- Settings' "skip certificate checks"; never applies to net.always_verify
 net.timeout = 25
+-- Hosts (and their subdomains) that carry account credentials: certificate
+-- checks stay on for these even when net.insecure is set.
+net.always_verify = { "online-go.com", "lichess.org" }
 
 function net.has_tls() return ok_ssl end
 
@@ -66,12 +69,64 @@ local function parse_url(url)
     if not hostport then return nil, "bad url" end
     if path == "" then path = "/" end
     path = path:gsub("#.*$", "")
+    -- the path goes into the request line verbatim: escape spaces and control
+    -- characters so a crafted link can't inject CR/LF (extra headers)
+    path = path:gsub("[%c ]", function(c) return string.format("%%%02X", c:byte()) end)
     local host, port = hostport:match("^(.-):(%d+)$")
     host = host or hostport
+    -- plain hostnames, IPv4 or [IPv6] only (no userinfo "user@", spaces or CR/LF)
+    if not (host:match("^[%w%.%-_]+$") or host:match("^%[[%x:%.]+%]$")) then
+        return nil, "bad host in url: " .. host:gsub("%c", "?")
+    end
     port = tonumber(port) or DEFAULT_PORT[scheme] or 80
     return { scheme = scheme, host = host, port = port, path = path }
 end
 net.parse_url = parse_url
+
+-- Does a certificate name (possibly "*.example.com") cover host? RFC 6125:
+-- a wildcard is only the whole leftmost label and needs two labels after it.
+local function name_matches(pattern, host)
+    pattern = tostring(pattern):lower():gsub("%.$", "")
+    host = host:lower():gsub("%.$", "")
+    if pattern == host then return true end
+    local rest = pattern:match("^%*%.(.+)$")
+    if not rest or not rest:find(".", 1, true) then return false end
+    local tail = host:match("^[^.]+%.(.+)$")
+    return tail == rest
+end
+net.name_matches = name_matches
+
+-- Check the peer certificate's subjectAltName against the host we dialled.
+-- LuaSec verifies the chain but not the name, so without this any valid
+-- certificate for any domain would be accepted.
+local function verify_host(conn, host)
+    local cert = conn.getpeercertificate and conn:getpeercertificate()
+    if not cert then return nil, "no peer certificate" end
+    local ok, ext = pcall(cert.extensions, cert)
+    local san = ok and type(ext) == "table" and ext["2.5.29.17"]
+    if type(san) ~= "table" then return nil, "certificate has no subjectAltName" end
+    local bare = host:match("^%[(.*)%]$")
+    if bare or host:match("^%d+%.%d+%.%d+%.%d+$") then
+        for _, ip in ipairs(san.iPAddress or {}) do
+            if tostring(ip):lower() == (bare or host):lower() then return true end
+        end
+    else
+        for _, name in ipairs(san.dNSName or {}) do
+            if name_matches(name, host) then return true end
+        end
+    end
+    return nil, "certificate is not for " .. host
+end
+
+local function must_verify(host)
+    if not net.insecure then return true end
+    host = host:lower()
+    for _, d in ipairs(net.always_verify) do
+        if host == d or host:sub(-(#d + 1)) == "." .. d then return true end
+    end
+    return false
+end
+net.must_verify = must_verify
 
 -- Resolve a possibly relative URL against a base URL.
 function net.resolve(base, href)
@@ -99,10 +154,16 @@ local function connect(u, timeout)
         local params = {
             mode = "client",
             protocol = "any",
-            options = { "all", "no_sslv2", "no_sslv3" },
+            options = { "all", "no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1" },
             verify = "none",
         }
-        if not net.insecure and net.cafile and sys.file_exists(net.cafile) then
+        local verify = must_verify(u.host)
+        if verify then
+            -- fail closed: a missing bundle must not quietly turn checks off
+            if not (net.cafile and sys.file_exists(net.cafile)) then
+                sock:close()
+                return nil, "tls: certificate bundle missing (" .. tostring(net.cafile) .. ")"
+            end
             params.verify = "peer"
             params.cafile = net.cafile
         end
@@ -118,6 +179,13 @@ local function connect(u, timeout)
                 msg = msg .. " (is the Kindle's date/time correct?)"
             end
             return nil, "tls handshake: " .. msg
+        end
+        if verify then
+            local vok, verr = verify_host(conn, u.host)
+            if not vok then
+                conn:close()
+                return nil, "tls: " .. verr
+            end
         end
         return conn
     end
@@ -220,8 +288,37 @@ local function read_body(sock, headers, max_bytes)
         end
         return data
     end
-    local data, err, partial = sock:receive("*a")
-    return data or partial or "", nil
+    -- no length: read to EOF, but still within max_bytes
+    local parts, total = {}, 0
+    while true do
+        local data, err, partial = sock:receive(65536)
+        local piece = data or partial
+        if piece and #piece > 0 then
+            total = total + #piece
+            if total > max_bytes then return nil, "response too large" end
+            parts[#parts + 1] = piece
+        end
+        if not data then
+            if err == "closed" then break end
+            return nil, "body: " .. tostring(err)
+        end
+    end
+    return table.concat(parts)
+end
+
+-- What to do with a redirect from `from` to `to`: "follow", "strip" (follow
+-- without credentials, because the origin changed), or nil and a reason.
+-- Credentials and request bodies never cross to another origin or down to http.
+local CRED_HEADERS = { authorization = true, cookie = true, ["proxy-authorization"] = true }
+function net.redirect_policy(from, to, has_creds, has_body)
+    local a, b = parse_url(from), parse_url(to)
+    if not a or not b then return nil, "bad redirect" end
+    local downgrade = TLS_SCHEMES[a.scheme] and not TLS_SCHEMES[b.scheme]
+    local cross = downgrade or a.host:lower() ~= b.host:lower() or a.port ~= b.port
+    if downgrade and (has_creds or has_body) then return nil, "refused redirect from HTTPS to HTTP" end
+    if cross and has_body then return nil, "refused to resend the request body to another site" end
+    if cross and has_creds then return "strip" end
+    return "follow"
 end
 
 -- Blocking request. opts: url, method, headers, body, timeout, max_bytes
@@ -240,10 +337,24 @@ function net.request(opts)
         if not status then sock:close() return nil, headers end
         if status >= 300 and status < 400 and headers.location and not opts.no_redirect then
             sock:close()
-            url = net.resolve(url, headers.location)
+            local to = net.resolve(url, headers.location)
             if status == 303 or ((status == 301 or status == 302) and method == "POST") then
                 method, opts = "GET", setmetatable({ body = false }, { __index = opts })
             end
+            local has_creds = false
+            for k in pairs(opts.headers or {}) do
+                if CRED_HEADERS[k:lower()] then has_creds = true end
+            end
+            local policy, why = net.redirect_policy(url, to, has_creds, opts.body and opts.body ~= "")
+            if not policy then return nil, why end
+            if policy == "strip" then
+                local h = {}
+                for k, v in pairs(opts.headers) do
+                    if not CRED_HEADERS[k:lower()] then h[k] = v end
+                end
+                opts = setmetatable({ headers = h }, { __index = opts })
+            end
+            url = to
         else
             local body, berr = read_body(sock, headers, opts.max_bytes)
             sock:close()
@@ -294,8 +405,13 @@ function net.stream(opts)
     return s
 end
 
+net.max_line = 4 * 1024 * 1024   -- one NDJSON event; a server sending more without a newline is broken
+
 function Stream:_feed_payload(data)
     self.payload = self.payload .. data
+    if #self.payload > net.max_line and not self.payload:find("\n", 1, true) then
+        return self:close("line too long")
+    end
     while true do
         local i = self.payload:find("\n", 1, true)
         if not i then break end

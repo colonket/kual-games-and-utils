@@ -110,7 +110,7 @@ To play a move, tap an intersection to place a pending stone, then tap it again 
 
 - **Taps land in the wrong place.** Open **Settings → Touch test**. If the crosshairs are mirrored or swapped, flip the touch toggles in Settings, then restart the app.
 - **Too much ghosting, or too much flashing.** Change "Refreshes between flashes" in Settings.
-- **HTTPS errors about certificates.** Usually the Kindle's clock is wrong; connect Wi-Fi so it can sync. As a last resort, Settings has "Skip HTTPS certificate checks".
+- **HTTPS errors about certificates.** Usually the Kindle's clock is wrong; connect Wi-Fi so it can sync. As a last resort, Settings has "Skip HTTPS certificate checks". It's unsafe on shared Wi-Fi, so it switches itself off when you close the app, and it never applies to OGS or Lichess, which hold your login.
 - **Something crashed.** The log is at `extensions/einkapps/data/log.txt`, and you can also read it from **Settings → View log**. If the screen is ever stuck, hold the power button for about 40 seconds to restart the Kindle.
 - **Firmware updates.** Don't update past 5.16.2.1.1, and consider installing renameotabin to block automatic updates.
 
@@ -121,7 +121,7 @@ To play a move, tap an intersection to place a pending stone, then tap it again 
 - **Touch.** The touchscreen is read straight from evdev and grabbed, so the Kindle UI underneath ignores it. A small gesture recognizer turns it into taps, holds and swipes.
 - **Live games.** OGS updates arrive over its realtime WebSocket (`core/ws.lua`, a small RFC 6455 client on LuaSocket and LuaSec). The games list still works over plain HTTPS if the socket is down.
 - **Fonts and pieces.** Fonts (DejaVu, Poppins) and the Lichess "cburnett" chess pieces are pre-rendered by `tools/build_assets.py`.
-- **Networking.** HTTPS uses KOReader's LuaSocket and LuaSec, with a bundled Mozilla CA list for certificate checks.
+- **Networking.** HTTPS uses KOReader's LuaSocket and LuaSec, with a bundled Mozilla CA list for certificate checks. The app also checks that each certificate is for the host it connected to (LuaSec doesn't), allows TLS 1.2 or newer only, and refuses to connect if the CA list is missing. Login tokens are never forwarded on a redirect to another site or to plain HTTP.
 
 ### Writing your own app
 
