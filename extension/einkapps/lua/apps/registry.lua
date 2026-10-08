@@ -82,8 +82,25 @@ function icons.lichess(s, x, y, size)
     glyph("♞")(s, x, y, size)
 end
 
+-- A 3×3 corner of a go board with one black and one white stone.
+function icons.go(s, x, y, size)
+    local m = size * 0.21
+    local g = size - 2 * m
+    local step = g / 2
+    local t = math.max(2, size * 0.025)
+    for i = 0, 2 do
+        s:fill_rect(x + m + step * i - t / 2, y + m - step * 0.4, t, g + step * 0.8, BLACK)
+        s:fill_rect(x + m - step * 0.4, y + m + step * i - t / 2, g + step * 0.8, t, BLACK)
+    end
+    local r = step * 0.46
+    s:fill_circle(x + m + step, y + m + step, r, BLACK)
+    s:fill_circle(x + m + step * 2, y + m, r, WHITE)
+    s:circle(x + m + step * 2, y + m, r, BLACK, math.max(3, size * 0.035))
+end
+
 registry.apps = {
     { id = "lichess", title = "Lichess", icon = icons.lichess, module = "apps.lichess.app" },
+    { id = "ogs", title = "Go (OGS)", icon = icons.go, module = "apps.ogs.app" },
     { id = "mtg", title = "Life Counter", icon = icons.mtg, module = "apps.mtg" },
     { id = "chess", title = "Chess", icon = glyph("♚"), module = "apps.chess_local" },
     { id = "sudoku", title = "Sudoku", icon = icons.grid, module = "apps.sudoku" },
