@@ -41,7 +41,7 @@ Touch apps for jailbroken Kindles, launched from KUAL. The main target is a Kind
 
 ## Hard-won device facts (don't regress)
 
-- **KOReader's `fbink` is a MINIMAL build without image support.** Never use `fbink -g`. Write pixels to `/dev/fb0` with `pwrite`, honoring `lineLength`, `BPP`, `viewHoriOrigin`/`viewVertOrigin` and `invertedGrayscale` from `fbink -e`. Then refresh with `fbink -q -s top=,left=,width=,height= [-f -W GC16]`.
+- **KOReader's `fbink` is a MINIMAL build without image support.** Never use `fbink -g`. Write pixels to `/dev/fb0` with `pwrite`, honoring `lineLength`, `BPP`, `viewHoriOrigin`, `viewVertOrigin - viewVertOffset` and `invertedGrayscale` from `fbink -e`. `viewVertOffset` is only FBInk's text-grid centering (4 on the PW3: `viewVertOrigin=4;viewVertOffset=4`), not a framebuffer offset. Then refresh with `fbink -q -s top=,left=,width=,height= [-f -W GC16]`.
 - **KOReader renames LuaSocket's core** to `socket.score` and `mime.mcore` under `common/`. Always `require("socket")` through KOReader's `common/socket.lua`. Kindle builds aren't "monolibtic"; `main.lua` still adds a loader in case they ever are.
 - **Don't set `LD_LIBRARY_PATH` to `koreader/libs` in `run.sh`.** Child processes like `lipc-set-prop` would load KOReader's libraries. LuaJIT's RPATH already finds `koreader/libs` for `ssl.so`.
 - **Event structs use `long` timevals**: 16 bytes on the 32-bit Kindle and 24 on x86_64. FFI handles this.
