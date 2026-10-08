@@ -55,9 +55,52 @@ function html.strip(s)
     return (s:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
--- Turn an HTML document into readable blocks: {kind="h"|"p"|"li", text=}
+-- Pull the \3<n>\4 ... \5 link markers out of a block's text. Returns the
+-- plain text and its links as { {s=, e=, href=} } (byte offsets into text).
+local function take_links(chunk, hrefs)
+    local parts, links, n, cur, pos = {}, {}, 0, nil, 1
+    local function close()
+        if cur then
+            cur.e = n
+            if cur.e >= cur.s then links[#links + 1] = cur end
+            cur = nil
+        end
+    end
+    while true do
+        local m = chunk:find("[\3\5]", pos)
+        local piece = chunk:sub(pos, (m or #chunk + 1) - 1)
+        -- markers can leave two spaces side by side; keep words single-spaced
+        if n > 0 and parts[#parts]:match("%s$") then piece = piece:gsub("^ +", "") end
+        if piece ~= "" then parts[#parts + 1] = piece; n = n + #piece end
+        if not m then break end
+        close()
+        if chunk:byte(m) == 3 then
+            local id, after = chunk:match("^(%d+)\4()", m + 1)
+            if id then cur = { s = n + 1, href = hrefs[tonumber(id)] } end
+            pos = after or m + 1
+        else
+            pos = m + 1
+        end
+    end
+    close()
+    local text = table.concat(parts)
+    local lead = #text:match("^%s*")
+    text = text:sub(lead + 1):gsub("%s+$", "")
+    local out = {}
+    for _, l in ipairs(links) do
+        l.s, l.e = math.max(1, l.s - lead), math.min(#text, l.e - lead)
+        while l.s <= l.e and text:sub(l.s, l.s):match("%s") do l.s = l.s + 1 end
+        while l.e >= l.s and text:sub(l.e, l.e):match("%s") do l.e = l.e - 1 end
+        if l.e >= l.s then out[#out + 1] = l end
+    end
+    return text, out
+end
+
+-- Turn an HTML document into readable blocks: {kind="h"|"p"|"li", text=, links=}
+-- links (only when the block has any) are { {s=, e=, href=} }: byte ranges of
+-- text that came from <a href>. The href is left as written (maybe relative).
 function html.to_blocks(doc)
-    local s = lower_tags(doc or "")
+    local s = lower_tags((doc or ""):gsub("[\3\4\5]", ""))
     s = s:gsub("<!%-%-.-%-%->", " ")
     s = drop_blocks(s, { "script", "style", "noscript", "svg", "head", "template", "iframe", "select", "button" })
     -- prefer the main content if marked up
@@ -75,6 +118,19 @@ function html.to_blocks(doc)
     s = s:gsub("</?section[^>]*>", "\1"):gsub("</?ul[^>]*>", "\1"):gsub("</?ol[^>]*>", "\1")
     s = s:gsub("</?table[^>]*>", "\1"):gsub("</?figure[^>]*>", "\1"):gsub("</?pre[^>]*>", "\1")
     s = s:gsub("<td[^>]*>", " "):gsub("<th[^>]*>", " ")
+    -- links become \3<n>\4 text \5 so they survive the tag strip below
+    local hrefs = {}
+    s = s:gsub("<a(%s[^>]*)>", function(attrs)
+        local H = "[Hh][Rr][Ee][Ff]%s*=%s*"
+        local href = attrs:match(H .. '"([^"]*)"') or attrs:match(H .. "'([^']*)'") or attrs:match(H .. "([^%s\"'>]+)")
+        href = href and html.decode(href):gsub("^%s+", ""):gsub("%s+$", "")
+        if not href or href == "" or href:match("^#") or href:lower():match("^javascript:")
+            or href:lower():match("^mailto:") then
+            return ""
+        end
+        hrefs[#hrefs + 1] = href
+        return "\3" .. #hrefs .. "\4"
+    end):gsub("</a%s*>", "\5")
     s = s:gsub("<[^>]*>", "")
     s = html.decode(s)
     local blocks = {}
@@ -83,9 +139,9 @@ function html.to_blocks(doc)
         if chunk:sub(1, 1) == "H" then kind, chunk = "h", chunk:sub(2)
         elseif chunk:sub(1, 1) == "L" then kind, chunk = "li", chunk:sub(2) end
         chunk = chunk:gsub("[ \t\r\n]+", " "):gsub("\2", "\n"):gsub(" *\n *", "\n")
-        chunk = chunk:gsub("^%s+", ""):gsub("%s+$", "")
-        if #chunk > 1 then
-            blocks[#blocks + 1] = { kind = kind, text = chunk }
+        local text, links = take_links(chunk, hrefs)
+        if #text > 1 then
+            blocks[#blocks + 1] = { kind = kind, text = text, links = #links > 0 and links or nil }
         end
     end
     return blocks

@@ -55,7 +55,9 @@ function M.new()
         return out
     end
 
-    local function show_page(title, url, blocks, file)
+    local open_result
+
+    local function page_actions(title, url, blocks, file)
         local actions = {}
         if not file then
             actions[#actions + 1] = { "Save for offline reading", function()
@@ -70,21 +72,17 @@ function M.new()
             local p = reader.export_txt("Web", title, blocks, url)
             ui.toast("Saved to " .. p:gsub("^/mnt/us/", ""))
         end }
-        reader.open({ header = "DuckDuckGo", title = title, subtitle = url, blocks = blocks, actions = actions })
+        return actions
     end
 
-    local function open_result(r)
-        if not kindle.ensure_wifi() then return ui.alert("Offline", "Wi-Fi isn't connected.") end
-        ui.busy("Loading page…")
-        local resp, err = net.get(r.url, { Accept = "text/html,application/xhtml+xml" })
-        if not resp then return ui.alert("Couldn't load page", err) end
-        if resp.status ~= 200 then return ui.alert("Couldn't load page", "HTTP " .. resp.status) end
-        local ctype = resp.headers["content-type"] or ""
-        local blocks
-        if ctype:find("text/plain") then blocks = html.text_blocks(resp.body) else blocks = html.to_blocks(resp.body) end
-        if #blocks == 0 then blocks = { { kind = "p", text = "This page has no readable text (it may need JavaScript)." } } end
-        local t = resp.body:match("<[Tt][Ii][Tt][Ll][Ee][^>]*>(.-)</[Tt][Ii][Tt][Ll][Ee]>")
-        show_page(t and html.strip(t) or r.title, resp.url or r.url, blocks)
+    -- Saved pages; links on them open like search results (and can be saved too).
+    local function show_page(title, url, blocks, file)
+        reader.open({ header = "DuckDuckGo", title = title, subtitle = url, blocks = blocks,
+            actions = page_actions(title, url, blocks, file), base = url, on_link = open_result })
+    end
+
+    function open_result(url, title)
+        reader.open_url(url, { header = "DuckDuckGo", title = title, actions = page_actions, on_link = open_result })
     end
 
     local function search(q)
@@ -102,7 +100,7 @@ function M.new()
         for _, r in ipairs(results) do
             opts[#opts + 1] = { title = r.title, subtitle = (r.url:match("^%a+://([^/]+)") or r.url) .. (r.snippet and (" — " .. r.snippet) or ""), r = r }
         end
-        ui.choose(q, opts, function(_, it) open_result(it.r) end, { row_h = dp(140) })
+        ui.choose(q, opts, function(_, it) open_result(it.r.url, it.r.title) end, { row_h = dp(140) })
     end
 
     function scr:render(ctx)
