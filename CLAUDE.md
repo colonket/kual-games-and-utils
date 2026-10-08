@@ -57,6 +57,7 @@ Contracts and protocol notes are in `docs/ogs/SPEC.md`.
 - **RT owns reconnection.** While any game is connected, RT retries with backoff (2, 5, 15 s, at most 12 tries), then re-sends `game/connect` and the server answers with fresh gamedata. On wake, the game screen calls `rt:reconnect()`; it never closes RT or calls `game_connect` twice. Background retries don't turn Wi-Fi on.
 - **Moves.** `game/<id>/move` has `move_number` = the number of moves including this one; handicap placements count. goban checks `getMoveNumber() == move_number - 1`. The game screen plays optimistically, matches the echo by `move_number` (or by coordinates), and resyncs over REST on any mismatch, error, or 15 s of silence.
 - **Ranks** come as raw numbers in gamedata (`players.*.rank`) and as `ranking` elsewhere. Always format them with `api.rank_string`.
+- **Bots.** The bot list comes from the socket's `active-bots` push (cached on RT, read with `api.bots()`), and `api.bot_check` mirrors online-go.com's `getAcceptableTimeSetting` (minus its inverted `allow_unranked` check). Presets are OGS's Play-page clocks. After `POST /players/{bot}/challenge`, send `challenge/keepalive` every second and `game/connect`; gamedata means accepted, a `gameOfferRejected` notification means declined. Details in `docs/ogs/SPEC.md`.
 - **Scoring.** The local provisional score comes from `go.score`, which under area rules gives white komi plus the handicap. The final score comes from the server: `{black={total=}, white={total=}}`.
 
 ## Not yet verified on real hardware
@@ -77,6 +78,7 @@ Not yet verified against real online-go.com (only against `tests/mock_ogs.py`):
 - the clock shapes for byo-yomi, Canadian and paused (weekend) correspondence clocks
 - the `removed_stones` strings that include empty points (dame). We parse them, but we only toggle stone groups ourselves.
 - `strict_seki_mode` and accept semantics when the opponent changes stones after we accepted
+- bots: when the server sends `active-bots` (on connect or only after `authenticate`), the real config contents, and the `gameOfferRejected` notification shape
 
 ## Running the simulator (desktop)
 

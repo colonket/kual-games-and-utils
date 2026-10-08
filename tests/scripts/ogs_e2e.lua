@@ -49,6 +49,7 @@ local function tap_pt(x, y)
 end
 local function settle(ms) return S.wait(ms or 150) end
 local function clear_toast() return function() ui.rt.toast_msg = nil; ui.redraw() end end
+local box = {}   -- values carried between steps (globals would trip the leak check)
 
 -- Type on core.keyboard: letters directly, digits and '-' via the 123 page.
 local function type_text(str)
@@ -194,6 +195,97 @@ local script = {
     settle(),
     S.snap("16_challenge_sent"),
     clear_toast(),
+
+    -- play a bot: the list arrives over the socket; each bot's config decides what it takes
+    S.tap_text("Play a bot"),
+    S.wait_until(function() return S.find_hit("kata-bot (9d)") ~= nil end, 5000),
+    settle(),
+    S.snap("16b_bots"),
+    S.check(function()
+        local b = require("apps.ogs.api").bots()
+        return #b == 5 and b[1].username == "legacy-bot" and b[4].username == "sleepy-bot" and b[5].username == "kata-bot"
+    end, "bot list from active-bots, weakest first"),
+    S.check(function()
+        local api = require("apps.ogs.api")
+        local by = {}
+        for _, b in ipairs(api.bots()) do by[b.username] = b end
+        local function why(name, o) return select(2, api.bot_check(by[name], o)) end
+        local rapid = api.bot_check(by["gnugo-9x9"], { size = 9, speed = "rapid", ranked = false })
+        return why("legacy-bot", { size = 9, speed = "live", ranked = false }) == "Hasn't published its settings"
+            and why("gnugo-9x9", { size = 13, speed = "live", ranked = false }) == "Doesn't play 13×13"
+            and why("gnugo-9x9", { size = 9, speed = "live", ranked = true }) == "Unranked games only"
+            and why("gnugo-9x9", { size = 9, speed = "blitz", ranked = false }) == "Doesn't play this clock"
+            and rapid and rapid.speed == "live"
+            and why("kata-bot", { size = 9, speed = "live", ranked = false, rank = 40 }) == "Only plays 30k–9d"
+            and api.bot_check(by["kata-bot"], { size = 19, speed = "correspondence", ranked = true }) ~= nil
+    end, "bot_check: no config, board size, ranked, missing clock, v1 rapid->live, rank range"),
+    S.check(function() return S.find_hit("gnugo-9x9") ~= nil and S.find_hit("legacy-bot") == nil end,
+        "9x9 live: gnugo playable, legacy-bot listed but not tappable"),
+    S.tap_text("13×13"),
+    S.check(function() return S.find_hit("gnugo-9x9") == nil and S.find_hit("kata-bot") ~= nil end,
+        "13x13 hides gnugo's Play"),
+    S.tap_text("9×9"),
+    -- a bot that declines: back on the bot list with an explanation
+    S.tap_text("refuser"),
+    S.wait_until(function() return top().overlay == true end, 5000),
+    settle(),
+    S.snap("16c_bot_declined"),
+    S.check(function()
+        return rt().handlers["notification"] == nil and ui.rt.stack[#ui.rt.stack - 1].play ~= nil
+    end, "declined: wait screen gone, its handlers removed"),
+    S.tap_text("OK"),
+    -- a bot that never answers: Cancel withdraws the challenge and stops the keepalives
+    S.tap_text("sleepy-bot"),
+    S.wait_until(function() return S.find_hit("Cancel challenge") ~= nil end, 5000),
+    S.wait(1500),
+    S.snap("16c2_bot_waiting"),
+    function() box.sleepy = state().last_challenge.challenge end,
+    S.check(function()
+        local n = 0
+        for _, m in ipairs(state().ws_log) do if m[1] == "challenge/keepalive" and m[2].challenge_id == box.sleepy then n = n + 1 end end
+        return n >= 2
+    end, "keepalive repeats while waiting"),
+    S.tap_text("Cancel challenge"),
+    S.wait_until(function() return top().play ~= nil end, 5000),
+    S.check(function()
+        for _, id in ipairs(state().challenges) do if id == box.sleepy then return false end end
+        return rt().handlers["notification"] == nil
+    end, "cancel: challenge withdrawn on the server, handlers removed"),
+    function()
+        box.keepalives = 0
+        for _, m in ipairs(state().ws_log) do if m[1] == "challenge/keepalive" then box.keepalives = box.keepalives + 1 end end
+    end,
+    S.wait(1500),
+    S.check(function()
+        local n = 0
+        for _, m in ipairs(state().ws_log) do if m[1] == "challenge/keepalive" then n = n + 1 end end
+        return n == box.keepalives
+    end, "cancel: keepalives stopped"),
+    -- a bot that accepts: the game opens by itself
+    S.tap_text("kata-bot"),
+    S.wait_until(function() return top().gd ~= nil and top().gd.players.white.username == "kata-bot" end, 5000),
+    settle(300),
+    S.snap("16d_bot_game"),
+    S.check(function()
+        local c = state().last_challenge
+        local gm = c.body.game
+        local tcp = gm.time_control_parameters
+        return c.player_id == 1201 and gm.width == 9 and gm.ranked == false and tcp.speed == "live"
+            and tcp.initial_time == 180 and tcp.time_increment == 10 and tcp.max_time == 1800
+    end, "bot challenge uses OGS's 9x9 live preset (3m+10s, max 30m)"),
+    S.check(function() return ws_count("challenge/keepalive") >= 1 end, "challenge kept alive over the socket"),
+    S.check(function() return top():my_turn() and top().my_color == 1 end, "my move as black against the bot"),
+    tap_pt(4, 4),
+    S.tap_text("Confirm E5"),
+    S.wait_until(function() return top().nmoves == 2 and top().sent == nil end, 5000),
+    settle(),
+    S.snap("16e_bot_reply"),
+    S.check(function() return at(4, 4) == 1 and at(6, 2) == 2 end, "the bot answers over the socket"),
+    S.tap_text("☰"),
+    S.tap_text("Back to games"),
+    S.wait_until(function() return top().games ~= nil and S.find_hit("kata-bot") ~= nil end, 5000),
+    S.check(function() return rt().handlers["notification"] == nil and rt().handlers["active-bots"]
+        and #rt().handlers["active-bots"] == 1 end, "bot screens left no handlers behind"),
 
     -- game 1002: live 19x19, opponent to move; a move arrives live
     S.tap_text("opponent (4k)"),

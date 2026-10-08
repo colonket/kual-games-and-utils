@@ -24,6 +24,7 @@ App id `ogs`, title **"Go (OGS)"**. Scope:
 5. **Challenges.**
    - Accept or decline incoming challenges.
    - Challenge a friend by username (board size, ranked or unranked, color, time control: a few presets including correspondence).
+   - Play a bot: pick size, speed and ranked; challenge any online bot whose config accepts that (see "Bots" below).
    - Automatch/seek is **out of scope** for now.
 6. **Live updates** over the OGS realtime WebSocket. When the socket is down, the game list still works over REST, and opening a game reconnects.
 
@@ -70,6 +71,23 @@ App id `ogs`, title **"Go (OGS)"**. Scope:
   Correspondence uses `"speed":"correspondence"` with `initial_time` and `max_time` of days×86400 and `time_increment` of 86400.
 - These JSON endpoints need `Content-Type: application/json`. `core/net.lua` defaults to form encoding, so pass the header.
 
+**Bots** (from online-go.com `src/lib/bots.ts`, `src/views/Play/QuickMatch.tsx`, `SPEED_OPTIONS.ts`, `ChallengeModal.tsx`)
+
+- The server pushes `["active-bots", {"<id>": {id, username, ranking, ui_class:"bot", config}}]` to every socket; the latest list replaces the previous one.
+- `config._config_version` is 0 (no settings published), 1 or 2. v1/v2 fields: `allowed_board_sizes` (list, number, `"all"` or `"square"`; `[0]` = any), `allow_ranked`, `allow_unranked`, `allowed_rank_range` (`["30k","9d"]`), `allow_ranked_handicap`, `allow_unranked_handicap`, `decline_new_challenges`, `hidden`, and `allowed_{blitz,rapid,live,correspondence}_settings` = `{fischer:{initial_time_range, max_time_range, time_increment_range}, byoyomi:{...}, simple:{...}}`.
+  - v1 has no `initial_time_range`: its `max_time_range` limits the **initial** time. v1 bots have no rapid settings; the server files rapid games under live.
+  - Upstream `getAcceptableTimeSetting` rejects unranked games when `allow_unranked` is **true** (inverted check); we use the intended logic.
+- Presets (Fischer `initial+increment, max`), the same as OGS's Play page:
+
+  | Size | blitz | rapid | live | correspondence |
+  | --- | --- | --- | --- | --- |
+  | 9×9 | 30s+5s, 5m | 2m+7s, 20m | 3m+10s, 30m | 3d+1d, 7d |
+  | 13×13 | 30s+5s, 5m | 3m+7s, 30m | 5m+10s, 30m | 3d+1d, 7d |
+  | 19×19 | 30s+5s, 5m | 5m+7s, 50m | 10m+10s, 60m | 3d+1d, 7d |
+
+- Challenge with `POST /api/v1/players/{bot_id}/challenge` (same body as above, `speed` = the preset's category). The reply is `{challenge:<id>, game:<id>}`.
+- Then, like the web client: send `game/connect {game_id}` and `challenge/keepalive {challenge_id, game_id}` every second. The bot accepting shows up as `game/<id>/gamedata`; declining as a socket `notification` with `type:"gameOfferRejected"`, `game_id` and `message`. Cancel with `DELETE /api/v1/me/challenges/{id}`.
+
 ### Realtime socket
 
 - URL: `wss://online-go.com/`. This is a **plain WebSocket, not socket.io**; the old `socket.io/?EIO=3` endpoint is legacy and must not be used.
@@ -90,6 +108,7 @@ App id `ogs`, title **"Go (OGS)"**. Scope:
   | `game/removed_stones/set` | `{game_id, removed:true\|false, stones:"aabbcc"}` |
   | `game/removed_stones/accept` | `{game_id, stones:"<all removed, concatenated pairs>", strict_seki_mode:false}` |
   | `game/removed_stones/reject` | `{game_id}` |
+  | `challenge/keepalive` | `{challenge_id, game_id}`, every second while waiting for a challenged bot |
 
 - Events received for a connected game:
 
@@ -180,7 +199,10 @@ Credentials live in `store` namespace `"ogs"`: `{client_id, client_secret, acces
 - `api.challenges()` returns a normalized incoming list `{id, from={username,rank}, width, height, ranked, time_desc}`.
 - `api.accept_challenge(id)` and `api.decline_challenge(id)`.
 - `api.find_player(username)` returns `{id, username, rank}` or nil, err.
-- `api.challenge_player(player_id, opts)`, where `opts = {size=19|13|9, ranked=bool, color="automatic"|"black"|"white", speed="live"|"correspondence", main_time=s, increment=s}`.
+- `api.challenge_player(player_id, opts)`, where `opts = {size=19|13|9, ranked=bool, color="automatic"|"black"|"white", speed="blitz"|"rapid"|"live"|"correspondence", main_time=s, increment=s, max_time=s}`.
+- `api.bots()` returns the online bots `{id, username, ranking, config}` weakest first, or nil before the first `active-bots`.
+- `api.bot_check(bot, {size, speed, ranked, rank})` returns the clock to offer `{speed, initial, increment, max}`, or nil and a short reason.
+- `api.BOT_SPEEDS`, `api.BOT_PRESETS[size][speed] = {initial, increment, max}`; `RT:keepalive(challenge_id, game_id)`.
 - `api.rank_string(ranking)` turns 30 into `"1d"`; OGS uses ranking < 30 for kyu: `30 - r` k, `r - 29` d.
 
 **Realtime**
@@ -202,7 +224,7 @@ Credentials live in `store` namespace `"ogs"`: `{client_id, client_secret, acces
 
 - `M.new()` returns the root screen, following the pattern of `apps/lichess/app.lua` (token check, then Lobby or Login).
 - **Login screen**: fields for client id, client secret, username and password, using `core.keyboard`; help text explains registering the OAuth app. The password is never stored.
-- **Lobby**: user and rank, an "online" dot, the games list (`ctx:list`, your-turn bold, opponent and rank, board size, speed), incoming challenges with Accept/Decline, buttons "Challenge a friend" and "Refresh", and a sign-out link.
+- **Lobby**: user and rank, an "online" dot, the games list (`ctx:list`, your-turn bold, opponent and rank, board size, speed), incoming challenges with Accept/Decline, buttons "Play a bot" and "Challenge a friend", ⟲ (refresh) in the header, and a sign-out link.
 - **GameScreen(id)**: built on `goboard`.
   - Player bars with clocks (`ui.redraw_quiet` ticking), captures and whose turn it is.
   - Two-step move: the first tap sets a pending stone, a second tap on the same point or **Confirm** submits it.
@@ -210,12 +232,13 @@ Credentials live in `store` namespace `"ogs"`: `{client_id, client_secret, acces
   - On `phase == "stone removal"`: tapping a group calls `rt:removed_set`, territory and score from `go.score` are shown, and Accept/Reject are offered. `finished` shows the result.
   - `kindle.prevent_screensaver(true)` is on for live games only.
 - **ChallengeScreen**: username field, board-size segmented control (9/13/19), speed presets (Live 10m+30s, Live 20m+30s, Correspondence 1 day, 3 days), color, ranked toggle.
+- **BotScreen**: board size, speed (Blitz/Rapid/Live/Corresp.), ranked toggle, and the bot list: playable bots first with "Play ›", the rest with the reason. **BotWaitScreen** keeps the challenge alive, opens the game on its gamedata, shows the decline message, and withdraws the challenge on Cancel/back or after 90 s.
 - Register the app in `apps/registry.lua` (icon: a small 3×3 grid section with one black and one white stone), and add a `menu.json` entry, "Go (OGS)", after Lichess.
 - Until B's real API exists, develop against a **stub**: `tests/ogs_stub_api.lua` with the same functions returning canned data, injected in sim scripts via `package.loaded["apps.ogs.api"] = require("ogs_stub_api")` (`tests/` is on the sim package path).
 
 ### 6. Integration & QA (workstream D, after A–C merge)
 
-- End-to-end sim scripts against `tests/mock_ogs.py`: login, lobby, open game 1001, play, opponent reply, pass twice, removal, accept, finished. Also accept a challenge and send a challenge.
+- End-to-end sim scripts against `tests/mock_ogs.py`: login, lobby, open game 1001, play, opponent reply, pass twice, removal, accept, finished. Also accept a challenge and send a challenge, and play a bot: the mock's `active-bots` has kata-bot (accepts), gnugo-9x9 (v1 config), refuser (declines), legacy-bot (no config) and sleepy-bot (never answers, for Cancel).
 - Review all new code against this spec and `CLAUDE.md`, and fix integration bugs.
 - Update `README.md` (OGS setup section), `CLAUDE.md` (OGS notes and new device facts) and `THIRD_PARTY_NOTICES.md`; the protocol was learned from goban (Apache-2.0) and googs (MIT), but no code was copied, so a "references" note is enough.
 
