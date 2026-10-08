@@ -3,6 +3,7 @@
 A suite of touch apps for jailbroken Kindles, launched from KUAL:
 
 - **Lichess**: play rapid, classical and correspondence games against people, plus any time control against Stockfish or friends. It uses the official Board API.
+- **Go (OGS)**: play correspondence and live games on [online-go.com](https://online-go.com) on 9×9, 13×13 or 19×19 boards. You can tap to place a stone and confirm it, pass, resign, mark dead stones and accept the score, and accept, decline or send challenges.
 - **Life Counter**: a Magic: The Gathering life counter for 2–6 players. Panels are rotated to face each seat, and it tracks poison, commander damage and tax, energy and experience. It also has dice, a coin flip and a random first player.
 - **Ports of [CrossPoint Apps](https://github.com/zakerytclarke/crosspoint-reader-apps)** (MIT):
   - **Chess**: full rules, with pass-and-play or a built-in engine.
@@ -22,7 +23,7 @@ Everything is written in Lua and runs on the **LuaJIT that ships with KOReader**
 ## Requirements
 
 - A jailbroken Kindle with **KUAL** and **KOReader** installed at `/mnt/us/koreader`. This was built and tested for the Paperwhite 3 (7th gen) on 5.16.2.1.1.
-- Wi-Fi, for Lichess, Weather, Wikipedia, RSS and DuckDuckGo.
+- Wi-Fi, for Lichess, Go (OGS), Weather, Wikipedia, RSS and DuckDuckGo.
 
 ## Install
 
@@ -45,6 +46,25 @@ To leave an app, tap **‹** in the top-left corner. To exit from the launcher, 
 
 Lichess limits Board API seeks to rapid, classical and correspondence time controls. Blitz is allowed against the computer and in direct challenges. Engine assistance is against Lichess rules.
 
+## Go (OGS) setup
+
+OGS signs in with OAuth, so you register a small "application" once:
+
+1. On a computer, sign in to online-go.com and open <https://online-go.com/oauth2/applications/>.
+2. Register a new application:
+   - **Client type:** Public
+   - **Authorization grant type:** Resource owner password-based
+   - Give it any name, and leave the redirect URIs empty.
+3. On the Kindle, open **Go (OGS)** and type the application's **client ID**, your OGS username and your password. The client secret is only needed if you made a confidential application.
+
+Your password is used once to get a token. Only the token is saved on the Kindle, in `extensions/einkapps/data/ogs.json`; **Sign out** removes it.
+
+To play a move, tap an intersection to place a pending stone, then tap it again or press **Confirm**. When both players pass, tap groups to mark them dead or alive, check the score, and press **Accept score**, or **Resume play** if you disagree. Live games keep the screensaver away while they are open.
+
+**What works:** correspondence and live games, clocks, scoring, incoming challenges, and challenging a friend by username.
+
+**Not yet:** automatch (seeking an opponent), chat, reviews, and rengo.
+
 ## Life counter controls
 
 - Tap the left or right half of a panel to subtract or add 1. Hold to subtract or add 5.
@@ -65,6 +85,7 @@ Lichess limits Board API seeks to rapid, classical and correspondence time contr
 - `bin/run.sh` pauses the Kindle UI the same way `koreader.sh` does: it disables pillow and stops `awesome`. It then runs `luajit lua/main.lua <app>` and restores the UI on exit.
 - **Drawing.** Each frame is drawn into an offscreen 8-bit buffer. Only the rectangles that changed are written to `/dev/fb0`, and KOReader's `fbink -s` refreshes just that part of the e-ink panel.
 - **Touch.** The touchscreen is read straight from evdev and grabbed, so the Kindle UI underneath ignores it. A small gesture recognizer turns it into taps, holds and swipes.
+- **Live games.** OGS updates arrive over its realtime WebSocket (`core/ws.lua`, a small RFC 6455 client on LuaSocket and LuaSec). The games list still works over plain HTTPS if the socket is down.
 - **Fonts and pieces.** Fonts (DejaVu, Poppins) and the Lichess "cburnett" chess pieces are pre-rendered by `tools/build_assets.py`.
 - **Networking.** HTTPS uses KOReader's LuaSocket and LuaSec, with a bundled Mozilla CA list for certificate checks.
 
@@ -92,7 +113,7 @@ Then register it:
 - Add an entry to `lua/apps/registry.lua`.
 - Optionally add a line to `menu.json`.
 
-The repository includes a desktop simulator for scripted tests (`tests/sim.sh`, `tests/run_all.sh`). It needs a local LuaJIT, LuaSocket and LuaSec.
+The repository includes a desktop simulator for scripted tests (`tests/sim.sh`, and `tests/test_all.sh` for the whole suite). It needs a local LuaJIT, LuaSocket and LuaSec.
 
 ## Credits & licenses
 
@@ -105,5 +126,6 @@ Other credits:
 - **Chess pieces:** the cburnett set by Colin M.L. Burnett, CC BY-SA 3.0, via Lichess.
 - **Fonts:** DejaVu (Bitstream Vera license) and Poppins (SIL OFL 1.1).
 - **CA bundle:** Mozilla, via certifi, MPL 2.0.
+- **OGS protocol:** learned from [online-go/goban](https://github.com/online-go/goban) (Apache-2.0) and [ymattw/googs](https://github.com/ymattw/googs) (MIT). No code was copied.
 
 Full texts are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [licenses/](licenses/).

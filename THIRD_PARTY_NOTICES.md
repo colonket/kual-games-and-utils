@@ -39,6 +39,15 @@ The `.efn` files in `extension/einkapps/assets/fonts/` are pre-rendered bitmaps 
 
 `extension/einkapps/assets/cacert.pem` is the Mozilla CA bundle as packaged by [certifi](https://github.com/certifi/python-certifi). See [`licenses/certifi-MPL.txt`](licenses/certifi-MPL.txt).
 
+## OGS protocol references
+
+The Go (OGS) app (`lua/apps/ogs/`, `lua/core/ws.lua`) speaks the online-go.com REST and realtime protocols. We learned them by reading these projects:
+
+- [online-go/goban](https://github.com/online-go/goban), Apache-2.0
+- [ymattw/googs](https://github.com/ymattw/googs), MIT
+
+No code from either project is included. The Go rules engine and board widget (`lua/apps/lib/go.lua` and `goboard.lua`) are original.
+
 ## Runtime dependencies (not included)
 
 The apps run on software that ships with [KOReader](https://github.com/koreader/koreader) (AGPL-3.0) and is used as-is from the Kindle:
