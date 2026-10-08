@@ -5,12 +5,8 @@ local S = require("simlib")
 local ui = require("core.ui")
 local input = require("core.input")
 
--- Until workstream A's go.lua/goboard.lua exist, use the stand-ins in tests/stubs.
+-- Uses the real go.lua/goboard.lua; only the network API is stubbed.
 local root = os.getenv("EINK_APPS_ROOT")
-local real = io.open(root .. "/lua/apps/lib/go.lua", "r")
-if real then real:close() else
-    package.path = root .. "/../../tests/stubs/?.lua;" .. package.path
-end
 os.remove(root .. "/data/ogs_prefs.json") -- start from default challenge settings
 
 local api

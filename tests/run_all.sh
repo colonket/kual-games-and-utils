@@ -6,7 +6,9 @@ python3 "$HERE/mock_web.py" $WEB_PORT 2>/tmp/mock_web.log & WEB=$!
 sleep 0.6
 export EINK_NET_REDIRECT=http://127.0.0.1:$WEB_PORT
 DATA="$HERE/../extension/einkapps/data"
-rm -rf "$DATA"; mkdir -p "$DATA"
+mkdir -p "$DATA"
+# wipe runtime state but keep the tracked README.txt
+find "$DATA" -mindepth 1 ! -name README.txt -exec rm -rf {} + 2>/dev/null
 echo '{"feeds":["https://news.ycombinator.com/rss","https://www.reddit.com/r/kindle/.rss"]}' > "$DATA/rss.json"
 fail=0
 for app in ${APPS:-calculator dice sudoku chess clock settings weather wikipedia rss duckduckgo}; do

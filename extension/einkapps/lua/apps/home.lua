@@ -47,7 +47,7 @@ function M.new()
             app.icon(s, x + (tw - isz) / 2, y + dp(8), isz)
             local label = lf:ellipsize(app.title, tw - dp(20))
             lf:draw_top(s, x + (tw - lf:width(label)) / 2, y + th - lf.height - dp(22), label, BLACK)
-            ctx:hit(x, y, tw, th, function() registry.open(app.id) end)
+            ctx:hit(x, y, tw, th, function() registry.open(app.id) end, nil, { label = app.title })
         end
     end
 
