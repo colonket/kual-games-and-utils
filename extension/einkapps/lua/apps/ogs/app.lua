@@ -74,6 +74,10 @@ local prefs
 local function load_prefs()
     if not prefs then
         prefs = store.load("ogs_prefs", { size = 3, tc = 1, color = 1, ranked = false, friend = "", coords = true })
+        -- added later, so fill them in for older saved prefs
+        prefs.bot_size = prefs.bot_size or 1
+        prefs.bot_speed = prefs.bot_speed or 3
+        if prefs.bot_ranked == nil then prefs.bot_ranked = false end
     end
     return prefs
 end
@@ -259,6 +263,168 @@ local function ChallengeScreen(on_sent)
     return scr
 end
 
+-- Play a bot ------------------------------------------------------------------------------------
+local BOT_SPEED_LABELS = { "Blitz", "Rapid", "Live", "Corresp." }
+local BOT_WAIT_MS = 90000   -- give up on a bot that neither accepts nor declines
+
+-- After the challenge is sent: keep it alive until the bot's game starts
+-- (game/<id>/gamedata arrives), it declines (a gameOfferRejected
+-- notification), we time out, or the user cancels.
+local function BotWaitScreen(bot, challenge_id, game_id, on_started)
+    local scr = { done = false }
+    local rt = api.realtime()
+    local gd_event = "game/" .. tostring(game_id) .. "/gamedata"
+
+    local function finish()
+        if scr.done then return false end
+        scr.done = true
+        ui.cancel_owner(scr)
+        rt:off(gd_event, scr.on_gamedata)
+        rt:off("notification", scr.on_notification)
+        rt:send("game/disconnect", { game_id = game_id })
+        return true
+    end
+
+    local function give_up(title, msg)
+        if not finish() then return end
+        api.decline_challenge(challenge_id)   -- withdraw it; fine if it's already gone
+        ui.pop(scr)
+        if title then ui.alert(title, msg) end
+    end
+
+    function scr.on_gamedata()
+        if not finish() then return end
+        ui.pop(scr)
+        on_started(game_id)
+    end
+
+    function scr.on_notification(n)
+        if type(n) ~= "table" or n.type ~= "gameOfferRejected" or tonumber(n.game_id) ~= tonumber(game_id) then return end
+        local why = type(n.rejection_details) == "table" and n.rejection_details.message or n.message
+        if not finish() then return end
+        ui.pop(scr)
+        ui.alert(bot.username .. " declined", (why and why ~= "") and tostring(why) or "The bot turned down this game.")
+    end
+
+    function scr:enter()
+        rt:on(gd_event, self.on_gamedata)
+        rt:on("notification", self.on_notification)
+        rt:send("game/connect", { game_id = game_id, chat = false })
+        rt:keepalive(challenge_id, game_id)
+        ui.every(1000, function() rt:keepalive(challenge_id, game_id) end, self)
+        ui.after(BOT_WAIT_MS, function()
+            give_up("No answer", bot.username .. " didn't accept in time, so the challenge was withdrawn.")
+        end, self)
+    end
+
+    function scr:leave() finish() end
+
+    function scr:render(ctx)
+        local top = ctx:header("Play a bot", { back = function() give_up() end })
+        local x, w = ui.M, ctx.W - 2 * ui.M
+        local y = top + dp(160)
+        local f = ui.font("bold", 44)
+        local msg = "Waiting for " .. bot.username .. "…"
+        f:draw_top(ctx.s, x + (w - f:width(f:ellipsize(msg, w))) / 2, y, f:ellipsize(msg, w), BLACK)
+        y = y + f.height + dp(30)
+        ctx:paragraph(x, y, w, "Bots usually accept within a few seconds. The game opens as soon as it starts.",
+            { font = ui.font("sans", 32), color = DARK, align = "center" })
+        ctx:button(x, ctx.H - ui.BTN_H - dp(50), w, ui.BTN_H, "Cancel challenge", function() give_up() end)
+    end
+    return scr
+end
+
+local function BotScreen(on_started)
+    local scr = { state = { page = 1 } }
+    local rt = api.realtime()
+
+    function scr.on_bots() if ui.top() == scr then ui.redraw() end end
+
+    function scr:enter()
+        rt:on("active-bots", self.on_bots)
+        if not rt.connected then session.ensure_rt() end
+    end
+
+    function scr:leave() rt:off("active-bots", self.on_bots) end
+
+    function scr:options()
+        local p = load_prefs()
+        return {
+            size = SIZES[p.bot_size] or 9, speed = api.BOT_SPEEDS[p.bot_speed] or "live",
+            ranked = p.bot_ranked, rank = session.me and tonumber(session.me.ranking),
+        }
+    end
+
+    function scr:play(bot, tc)
+        local o = self:options()
+        -- the socket tells us when the game starts, so it must be up first
+        local ok, cerr = session.ensure_rt()
+        if not ok then return ui.alert("Offline", "Couldn't reach OGS's realtime server: " .. tostring(cerr)) end
+        ui.busy("Challenging " .. bot.username .. "…")
+        local res, err = api.challenge_player(bot.id, {
+            size = o.size, ranked = o.ranked, color = "automatic", speed = tc.speed,
+            main_time = tc.initial, increment = tc.increment, max_time = tc.max,
+        })
+        if not res then return ui.alert("Challenge failed", err) end
+        local gid = type(res) == "table" and res.game
+        if type(gid) == "table" then gid = gid.id end
+        local cid = type(res) == "table" and res.challenge
+        if not gid or not cid then
+            ui.pop(self)
+            return ui.toast("Challenge sent to " .. bot.username .. ". The game appears in your list once accepted.", 4000)
+        end
+        ui.push(BotWaitScreen(bot, cid, gid, function(id)
+            ui.pop(self)
+            on_started(id)
+        end))
+    end
+
+    function scr:render(ctx)
+        local p = load_prefs()
+        local top = ctx:header("Play a bot")
+        local x, w = ui.M, ctx.W - 2 * ui.M
+        local y = top + dp(26)
+        y = y + section(ctx, x, y, "BOARD SIZE")
+        ctx:segmented(x, y, w, dp(96), { "9×9", "13×13", "19×19" }, p.bot_size,
+            function(i) p.bot_size = i; save_prefs(); self.state.page = 1; ui.redraw() end)
+        y = y + dp(96) + dp(30)
+        local o = self:options()
+        local preset = (api.BOT_PRESETS[o.size] or api.BOT_PRESETS[19])[o.speed]
+        local clock = api.time_desc({ system = "fischer", initial_time = preset[1], time_increment = preset[2] }):gsub("%+", " + ")
+        y = y + section(ctx, x, y, "SPEED  ·  " .. clock .. " per move")
+        ctx:segmented(x, y, w, dp(96), BOT_SPEED_LABELS, p.bot_speed,
+            function(i) p.bot_speed = i; save_prefs(); self.state.page = 1; ui.redraw() end)
+        y = y + dp(96) + dp(24)
+        ctx:toggle(x, y, w, dp(96), "Ranked game", p.bot_ranked,
+            function(v) p.bot_ranked = v; save_prefs(); self.state.page = 1; ui.redraw() end)
+        y = y + dp(96) + dp(24)
+        y = y + section(ctx, x, y, "BOTS ONLINE")
+        ctx.s:fill_rect(x, y - dp(4), w, ui.BORDER, LIGHT)
+        local bots = api.bots()
+        local ready, busy = {}, {}
+        for _, b in ipairs(bots or {}) do
+            local tc, why = api.bot_check(b, o)
+            local rk = b.ranking and api.rank_string(b.ranking) or ""
+            local title = b.username .. (rk ~= "" and (" (" .. rk .. ")") or "")
+            if tc then
+                local bot = b
+                ready[#ready + 1] = { title = title, subtitle = cap(tc.speed) .. " · " .. api.time_desc({
+                    system = "fischer", initial_time = tc.initial, time_increment = tc.increment }),
+                    right = "Play ›", bold = true, on_tap = function() self:play(bot, tc) end }
+            else
+                busy[#busy + 1] = { title = title, subtitle = why }
+            end
+        end
+        for _, it in ipairs(busy) do ready[#ready + 1] = it end
+        local empty
+        if not rt.connected then empty = "Not connected to OGS. Go back and tap ⟲ to retry."
+        elseif not bots then empty = "Waiting for the list of bots…"
+        else empty = "No bots are online right now." end
+        ctx:list(x, y + dp(4), w, ctx.H - y - dp(20), ready, self.state, { empty = empty, row_h = dp(124) })
+    end
+    return scr
+end
+
 -- Lobby -------------------------------------------------------------------------------------------
 Lobby = function()
     local scr = { state = { page = 1 }, games = nil, challenges = {} }
@@ -348,7 +514,8 @@ Lobby = function()
 
     function scr:render(ctx)
         local s = ctx.s
-        local top = ctx:header("Go (OGS)", { back = function() ui.pop(scr) end })
+        local top = ctx:header("Go (OGS)", { back = function() ui.pop(scr) end,
+            right = { "⟲", function() self:load() end, size = 44 } })
         local x, w = ui.M, ctx.W - 2 * ui.M
         local y = top + dp(26)
         local me = session.me
@@ -376,11 +543,14 @@ Lobby = function()
         df:draw_top(s, x + w - df:width(dot), y + dp(10), dot, DARK)
         y = y + nf.height + dp(26)
         ctx:button_row(x, y, w, dp(104), {
+            { "Play a bot", function()
+                self.stale = true
+                ui.push(BotScreen(function(id) self:open(id) end))
+            end, { style = "solid", size = 32 } },
             { "Challenge a friend", function()
                 self.stale = true
                 ui.push(ChallengeScreen())
-            end, { style = "solid", size = 32 } },
-            { "Refresh", function() self:load() end, { size = 32 } },
+            end, { size = 32 } },
         })
         y = y + dp(104) + dp(30)
         -- incoming challenges
@@ -430,7 +600,7 @@ Lobby = function()
         end
         local foot = dp(110)
         ctx:list(x, y + dp(4), w, ctx.H - y - foot, items, self.state,
-            { empty = self.err or "No active games. Challenge a friend to start one.", row_h = dp(128) })
+            { empty = self.err or "No active games. Play a bot or challenge a friend to start one.", row_h = dp(128) })
         -- footer
         local ff = ui.font("sans", 26)
         local sign = "Sign out"

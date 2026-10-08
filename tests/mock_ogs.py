@@ -24,6 +24,13 @@ Games:
 Challenges: one incoming (id 3001 from "challenger", 13x13 unranked);
 accepting it creates game 1003. Outgoing challenges go to players
 "friend" (888) / "opponent" (777) / "rival" (778).
+Bots: after authenticate the socket gets "active-bots" with five bots:
+  kata-bot (1201, v2 config, plays anything), gnugo-9x9 (1202, v1 config:
+  9x9 unranked live only), refuser (1203, declines every challenge with a
+  gameOfferRejected notification), legacy-bot (1204, no config) and
+  sleepy-bot (1205, never answers, for cancel/timeout).
+  A bot challenge starts its game on the first challenge/keepalive: the
+  client is black and the bot (white) answers each move ~0.5 s later.
 
 Test hooks (no auth):
   GET  /_mock/state                 games, ws command log, last challenge
@@ -50,6 +57,39 @@ RIVAL = {"id": 778, "username": "rival", "ranking": 31.5, "professional": False}
 FRIEND = {"id": 888, "username": "friend", "ranking": 20.0, "professional": False}
 CHALLENGER = {"id": 999, "username": "challenger", "ranking": 28.0, "professional": False}
 PLAYERS = [OPP, RIVAL, FRIEND, CHALLENGER, ME]
+
+
+def bot_v2(bid, name, ranking, sizes="all"):
+    clock = {"fischer": {"initial_time_range": [30, 3600], "max_time_range": [30, 7200],
+                         "time_increment_range": [1, 300]}}
+    return {"id": bid, "username": name, "ranking": ranking, "ui_class": "bot", "config": {
+        "_config_version": 2, "hidden": False, "bot_id": bid, "username": name,
+        "allowed_time_control_systems": ["fischer", "byoyomi"], "allowed_board_sizes": sizes,
+        "allowed_blitz_settings": clock, "allowed_rapid_settings": clock, "allowed_live_settings": clock,
+        "allowed_correspondence_settings": {"fischer": {"initial_time_range": [86400, 1209600],
+                                                        "max_time_range": [86400, 1209600],
+                                                        "time_increment_range": [3600, 604800]}},
+        "allow_ranked": True, "allow_unranked": True, "allowed_rank_range": ["30k", "9d"],
+        "allow_ranked_handicap": False, "allow_unranked_handicap": True,
+        "allowed_komi_range": [-15, 15], "decline_new_challenges": False,
+        "min_move_time": 0, "max_games_per_player": 3}}
+
+
+BOTS = {
+    1201: bot_v2(1201, "kata-bot", 38.0),
+    1202: {"id": 1202, "username": "gnugo-9x9", "ranking": 20.0, "ui_class": "bot", "config": {
+        "_config_version": 1, "hidden": False, "bot_id": 1202, "username": "gnugo-9x9",
+        "allowed_time_control_systems": ["fischer"], "allowed_board_sizes": [9],
+        "allowed_live_settings": {"fischer": {"max_time_range": [60, 3600], "time_increment_range": [0, 60]}},
+        "allow_ranked": False, "allow_unranked": True, "allowed_rank_range": ["30k", "9d"],
+        "allow_ranked_handicap": False, "allow_unranked_handicap": False, "allowed_komi_range": [-15, 15],
+        "decline_new_challenges": False, "min_move_time": 0, "max_games_per_player": 1}},
+    1203: bot_v2(1203, "refuser", 25.0),
+    1204: {"id": 1204, "username": "legacy-bot", "ranking": 15.0, "ui_class": "bot",
+           "config": {"_config_version": 0}},
+    1205: bot_v2(1205, "sleepy-bot", 30.0),
+}
+BOT_SCRIPT = [(6, 2), (2, 6), (6, 6), (2, 2), (4, 6), (6, 4), (4, 2), (2, 4)]
 JWT = "jwt-kindle-501"
 
 OPP_SCRIPT = {
@@ -100,7 +140,7 @@ class Game:
         self.outcome = ""
         self.score = None
         self.end_time = None
-        self.script = list(OPP_SCRIPT.get(gid, []))
+        self.script = list(OPP_SCRIPT.get(gid, BOT_SCRIPT if white["id"] in BOTS else []))
 
     # -- derived state ------------------------------------------------------------
     def to_move(self):
@@ -225,6 +265,8 @@ class State:
         self.next_game = 2001
         self.last_challenge = None
         self.ws_log = []
+        self.bot_pending = {}    # game id -> {"challenge", "bot", "game"} until the bot answers
+        self.bot_games = set()
 
 
 S = State()
@@ -340,11 +382,35 @@ def handle_ws(conn, msg, sess):
                 sess["user"] = ME["id"]
                 if not data.get("device_id"):
                     log("WARNING: authenticate without device_id")
+                send(conn, ["active-bots", {str(b): v for b, v in BOTS.items()}])
             else:
                 log("authenticate: bad jwt", data)
                 reply = None
         elif cmd == "net/ping":
             send(conn, ["net/pong", {"client": (data or {}).get("client"), "server": now_ms()}])
+        elif cmd == "challenge/keepalive":
+            gid = int((data or {}).get("game_id", 0))
+            pend = S.bot_pending.pop(gid, None)
+            if pend and pend["bot"]["username"] == "sleepy-bot":
+                S.bot_pending[gid] = pend
+            elif pend and pend["challenge"] == (data or {}).get("challenge_id"):
+                S.challenges = [c for c in S.challenges if c["id"] != pend["challenge"]]
+                bot = pend["bot"]
+                if bot["username"] == "refuser":
+                    send(conn, ["notification", {"id": "n-%d" % gid, "type": "gameOfferRejected",
+                                                 "game_id": gid, "message": "I'm only practising today."}])
+                else:
+                    gm = pend["game"]
+                    tcp = gm["time_control_parameters"]
+                    S.games[gid] = Game(gid, gm["name"], gm["width"], ME, bot, tcp["speed"], [], tcp)
+                    S.bot_games.add(gid)
+                    log("bot", bot["username"], "accepted; game", gid)
+                    broadcast(gid, "gamedata", S.games[gid].gamedata())
+                    broadcast(gid, "clock", S.games[gid].clock())
+            elif pend:
+                S.bot_pending[gid] = pend
+        elif cmd == "game/connect" and int(data["game_id"]) in S.bot_pending:
+            SUBS.setdefault(int(data["game_id"]), set()).add(conn)   # game starts when the bot accepts
         elif cmd == "game/connect":
             gid = int(data["game_id"])
             g = S.games.get(gid)
@@ -382,7 +448,7 @@ def handle_ws(conn, msg, sess):
                         mv = g.play(x, y)
                         broadcast(gid, "move", {"game_id": gid, "move_number": len(g.moves), "move": mv})
                         broadcast(gid, "clock", g.clock())
-                        if gid in OPP_SCRIPT and gid != 1002:
+                        if (gid in OPP_SCRIPT and gid != 1002) or gid in S.bot_games:
                             later(0.5, lambda: opponent_move(gid, force_pass=second_pass))
             elif cmd == "game/resign":
                 if g.phase == "finished":
@@ -536,6 +602,9 @@ class H(BaseHTTPRequestHandler):
                 cid = int(path.split("/")[5])
                 before = len(S.challenges)
                 S.challenges = [c for c in S.challenges if c["id"] != cid]
+                for gid, pend in list(S.bot_pending.items()):
+                    if pend["challenge"] == cid:
+                        del S.bot_pending[gid]
                 if len(S.challenges) == before:
                     return self.reply(404, {"detail": "Not found."})
                 return self.reply(204)
@@ -589,7 +658,7 @@ class H(BaseHTTPRequestHandler):
                 if "application/json" not in ctype:
                     return self.reply(415, {"detail": "Unsupported media type \"%s\" in request." % ctype})
                 pid = int(path.split("/")[4])
-                target = next((p for p in PLAYERS if p["id"] == pid), None)
+                target = next((p for p in PLAYERS if p["id"] == pid), None) or BOTS.get(pid)
                 if not target:
                     return self.reply(404, {"detail": "Not found."})
                 try:
@@ -606,8 +675,11 @@ class H(BaseHTTPRequestHandler):
                 S.next_challenge += 1
                 gid = self.new_game_id()
                 S.last_challenge = {"player_id": pid, "body": body, "challenge": cid}
+                if pid in BOTS:
+                    S.bot_pending[gid] = {"challenge": cid, "bot": {k: target[k] for k in ("id", "username", "ranking")},
+                                          "game": game}
                 S.challenges.append({
-                    "id": cid, "challenger": dict(ME), "challenged": dict(target),
+                    "id": cid, "challenger": dict(ME), "challenged": {k: target[k] for k in ("id", "username", "ranking")},
                     "challenger_color": body["challenger_color"],
                     "game": dict(game, id=gid, time_control_parameters=json.dumps(tcp)),
                 })

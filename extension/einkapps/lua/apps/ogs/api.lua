@@ -402,7 +402,8 @@ function api.find_player(username)
 end
 
 -- opts: {size=19|13|9, ranked=bool, color="automatic"|"black"|"white",
---        speed="live"|"correspondence", main_time=s, increment=s, rules=, name=}
+--        speed="blitz"|"rapid"|"live"|"correspondence", main_time=s, increment=s,
+--        max_time=s, rules=, name=}
 function api.build_challenge(opts)
     opts = opts or {}
     local size = tonumber(opts.size) or 19
@@ -410,7 +411,7 @@ function api.build_challenge(opts)
     local corr = speed == "correspondence"
     local main = tonumber(opts.main_time) or (corr and 3 * 86400 or 600)
     local inc = tonumber(opts.increment) or (corr and 86400 or 30)
-    local max_time = corr and main or main * 2
+    local max_time = tonumber(opts.max_time) or (corr and main or main * 2)
     local tcp = {
         system = "fischer", time_control = "fischer", speed = speed,
         initial_time = main, time_increment = inc, max_time = max_time,
@@ -434,6 +435,96 @@ function api.challenge_player(player_id, opts)
         api.build_challenge(opts), { json = true })
 end
 
+-- Bots ---------------------------------------------------------------------------------
+-- The server pushes ["active-bots", {<id>: {id, username, ranking, config}}] over the
+-- realtime socket; each bot's config says which games it accepts. Presets are the
+-- Fischer clocks from OGS's own Play page (online-go.com src/views/Play/SPEED_OPTIONS.ts),
+-- so the speed we declare is one the server agrees with: {initial, increment, max}.
+api.BOT_SPEEDS = { "blitz", "rapid", "live", "correspondence" }
+local CORR = { 3 * 86400, 86400, 7 * 86400 }
+api.BOT_PRESETS = {
+    [9] = { blitz = { 30, 5, 300 }, rapid = { 120, 7, 1200 }, live = { 180, 10, 1800 }, correspondence = CORR },
+    [13] = { blitz = { 30, 5, 300 }, rapid = { 180, 7, 1800 }, live = { 300, 10, 1800 }, correspondence = CORR },
+    [19] = { blitz = { 30, 5, 300 }, rapid = { 300, 7, 3000 }, live = { 600, 10, 3600 }, correspondence = CORR },
+}
+
+-- Online bots sorted weakest first, or nil if the server hasn't sent the list yet.
+function api.bots()
+    local raw = api.realtime().bots
+    if type(raw) ~= "table" then return nil end
+    local out = {}
+    for _, b in pairs(raw) do
+        local id = type(b) == "table" and tonumber(b.id)
+        local conf = type(b) == "table" and type(b.config) == "table" and b.config or {}
+        if id and id > 0 and conf.hidden ~= true then
+            out[#out + 1] = { id = id, username = tostring(b.username or id), ranking = tonumber(b.ranking), config = conf }
+        end
+    end
+    table.sort(out, function(a, b)
+        if (a.ranking or 0) ~= (b.ranking or 0) then return (a.ranking or 0) < (b.ranking or 0) end
+        return a.username:lower() < b.username:lower()
+    end)
+    return out
+end
+
+-- "5k" / "1d" / "1p" -> OGS ranking number (30 = 1d, as in api.rank_string).
+local function rank_number(r)
+    local n, u = tostring(r or ""):match("^%s*(%d+)%s*([kKdDpP])")
+    n = tonumber(n)
+    if not n then return nil end
+    u = u:lower()
+    if u == "k" then return 30 - n elseif u == "d" then return 29 + n end
+    return 36 + n
+end
+
+local function in_range(v, r)
+    return type(r) == "table" and tonumber(r[1]) ~= nil and tonumber(r[2]) ~= nil and v >= r[1] and v <= r[2]
+end
+
+-- Will this bot take a game with o = {size=, speed=, ranked=, rank=<my ranking>}?
+-- Returns the clock to offer {speed, initial, increment, max}, or nil and a short reason.
+-- Follows getAcceptableTimeSetting() in online-go.com src/lib/bots.ts.
+function api.bot_check(bot, o)
+    local c = bot.config or {}
+    local ver = tonumber(c._config_version) or 0
+    if ver < 1 then return nil, "Hasn't published its settings" end
+    if c.decline_new_challenges == true then return nil, "Not taking challenges" end
+    local size, bs = o.size, c.allowed_board_sizes
+    local size_ok = bs == "all" or bs == "square" or tonumber(bs) == size
+    if type(bs) == "table" then
+        for _, v in ipairs(bs) do if v == size or v == 0 then size_ok = true end end
+    end
+    if not size_ok then return nil, "Doesn't play " .. size .. "×" .. size end
+    if type(c.allowed_rank_range) == "table" and o.rank then
+        local lo, hi = rank_number(c.allowed_rank_range[1]), rank_number(c.allowed_rank_range[2])
+        if lo and hi and (o.rank < lo or o.rank > hi) then
+            return nil, "Only plays " .. tostring(c.allowed_rank_range[1]) .. "–" .. tostring(c.allowed_rank_range[2])
+        end
+    end
+    if o.ranked and c.allow_ranked ~= true then return nil, "Unranked games only" end
+    if not o.ranked and c.allow_unranked ~= true then return nil, "Ranked games only" end
+    local p = (api.BOT_PRESETS[size] or api.BOT_PRESETS[19])[o.speed]
+    if not p then return nil, "Unknown speed" end
+    local tc = { speed = o.speed, initial = p[1], increment = p[2], max = p[3] }
+    local function fits(set)
+        local f = type(set) == "table" and set.fischer
+        if type(f) ~= "table" then return false end
+        if ver == 1 then
+            -- v1 configs put the initial-time limits in max_time_range
+            return in_range(tc.initial, f.max_time_range) and in_range(tc.increment, f.time_increment_range)
+        end
+        return in_range(tc.initial, f.initial_time_range) and in_range(tc.max, f.max_time_range)
+            and in_range(tc.increment, f.time_increment_range)
+    end
+    if fits(c["allowed_" .. o.speed .. "_settings"]) then return tc end
+    -- v1 bots have no rapid settings; the server files those games under live
+    if ver == 1 and o.speed == "rapid" and fits(c.allowed_live_settings) then
+        tc.speed = "live"
+        return tc
+    end
+    return nil, "Doesn't play this clock"
+end
+
 -- Realtime ---------------------------------------------------------------------------
 local RT = {}
 RT.__index = RT
@@ -444,6 +535,8 @@ function api.realtime()
             handlers = {}, games = {}, callbacks = {}, next_id = 0,
             connected = false, tries = 0,
         }, RT)
+        -- keep the latest bot list for api.bots(); screens can also listen for it
+        api._rt:on("active-bots", function(data) api._rt.bots = data end)
     end
     return api._rt
 end
@@ -672,6 +765,12 @@ api.sgf = sgf
 
 function RT:move(id, x, y)
     return self:send("game/move", { game_id = tonumber(id) or id, player_id = cfg().user_id, move = sgf(x, y) })
+end
+
+-- Keep an outgoing challenge alive while we wait for the opponent (OGS drops
+-- live challenges that stop getting these; the web client sends one a second).
+function RT:keepalive(challenge_id, game_id)
+    return self:send("challenge/keepalive", { challenge_id = challenge_id, game_id = game_id })
 end
 
 function RT:resign(id)

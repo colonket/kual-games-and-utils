@@ -3,7 +3,7 @@
 A suite of touch apps for jailbroken Kindles, launched from KUAL:
 
 - **Lichess**: play rapid, classical and correspondence games against people, plus any time control against Stockfish or friends. It uses the official Board API.
-- **Go (OGS)**: play correspondence and live games on [online-go.com](https://online-go.com) on 9×9, 13×13 or 19×19 boards. You can tap to place a stone and confirm it, pass, resign, mark dead stones and accept the score, and accept, decline or send challenges.
+- **Go (OGS)**: play correspondence and live games on [online-go.com](https://online-go.com) on 9×9, 13×13 or 19×19 boards. You can play OGS's bots, tap to place a stone and confirm it, pass, resign, mark dead stones and accept the score, and accept, decline or send challenges.
 - **Life Counter**: a Magic: The Gathering life counter for 2–6 players. Panels are rotated to face each seat, and it tracks poison, commander damage and tax, energy and experience. It also has dice, a coin flip and a random first player.
 - **Ports of [CrossPoint Apps](https://github.com/zakerytclarke/crosspoint-reader-apps)** (MIT):
   - **Chess**: full rules, with pass-and-play or a built-in engine.
@@ -93,7 +93,9 @@ Your password is used once to get a token. Only the token is saved on the Kindle
 
 To play a move, tap an intersection to place a pending stone, then tap it again or press **Confirm**. When both players pass, tap groups to mark them dead or alive, check the score, and press **Accept score**, or **Resume play** if you disagree. Live games keep the screensaver away while they are open.
 
-**What works:** correspondence and live games, clocks, scoring, incoming challenges, and challenging a friend by username.
+**What works:** correspondence and live games, clocks, scoring, incoming challenges, challenging a friend by username, and playing a bot.
+
+**Playing a bot.** Tap **Play a bot**, then pick a board size, a speed (Blitz, Rapid, Live or Correspondence) and ranked or unranked. The list shows the bots online right now, and only offers **Play** for bots that accept those settings; the others say why not (for example "Doesn't play 13×13"). The clocks are the same presets as OGS's own Play page. The game opens as soon as the bot accepts, usually within a few seconds. You play the color OGS assigns, and **Cancel challenge** withdraws it if a bot doesn't answer.
 
 **Not yet:** automatch (seeking an opponent), chat, reviews, and rengo.
 
