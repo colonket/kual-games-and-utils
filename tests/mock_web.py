@@ -24,7 +24,7 @@ In a game of Magic, two or more players are engaged in a battle acting as powerf
 Commander is a multiplayer format with 100-card singleton decks and 40 starting life. A player who takes 21 combat damage from a single commander loses the game.
 """ + "\n".join("Paragraph %d of filler text to make the article long enough to span several pages on the Kindle screen, so pagination can be tested properly." % i for i in range(40))
 RSS = """<?xml version="1.0"?><rss version="2.0"><channel><title>Hacker News</title>
-<item><title>Show HN: Running custom apps on a jailbroken Kindle</title><link>http://127.0.0.1:{port}/example.com/article</link><pubDate>Wed, 07 Oct 2026 18:00:00 +0000</pubDate><description><![CDATA[<p>A suite of <b>e-ink</b> apps &amp; games written in LuaJIT.</p>]]></description></item>
+<item><title>Show HN: Running custom apps on a jailbroken Kindle</title><link>http://127.0.0.1:{port}/example.com/article</link><pubDate>Wed, 07 Oct 2026 18:00:00 +0000</pubDate><description><![CDATA[<p>A suite of <b>e-ink</b> apps &amp; games written in LuaJIT.</p><a href="https://news.ycombinator.com/item?id=4242">Comments</a>]]></description></item>
 <item><title>Why e-ink is great for chess</title><link>https://example.com/b</link><pubDate>Tue, 06 Oct 2026 12:00:00 +0000</pubDate><description>Low glare, long battery life.</description></item>
 </channel></rss>"""
 ATOM = """<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>r/kindle</title>
@@ -34,8 +34,19 @@ DDG = """<html><body><div class="result"><a rel="nofollow" class="result__a" hre
 <a class="result__snippet" href="#">How to run <b>apps</b> on a Kindle.</a></div>
 <div class="result"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fsecond">Second result</a><a class="result__snippet">Another snippet</a></div></body></html>"""
 ARTICLE = """<html><head><title>Running apps on a Kindle</title><style>p{color:red}</style><script>var x=1;</script></head>
-<body><nav>Home | About</nav><article><h1>Running apps on a Kindle</h1><p>Jailbreaking lets you run <a href="#">KUAL</a> extensions.</p>
+<body><nav>Home | About</nav><article><h1>Running apps on a Kindle</h1><p>Jailbreaking lets you run <a href="#">KUAL</a> extensions. <a href="/news.ycombinator.com/item?id=4242">Discuss on HN</a></p>
 <h2>Requirements</h2><ul><li>A jailbroken Kindle</li><li>KOReader installed</li></ul><p>""" + " ".join(["E-ink is wonderful for reading long articles."] * 30) + """</p></article><footer>(c) 2026</footer></body></html>"""
+# Hacker News item pages, shaped like the real ones (tables, relative links)
+HN_ITEM = {
+  "4242": """<html><head><title>Show HN: Running custom apps on a jailbroken Kindle | Hacker News</title></head><body><center><table>
+<tr><td><a href="news">Hacker News</a> | <a href="newest">new</a></td></tr>
+<tr><td><span class="titleline"><a href="https://example.com/article">Show HN: Running custom apps on a jailbroken Kindle</a></span></td></tr>
+<tr><td><table class="comment-tree"><tr class="athing comtr"><td><a href="user?id=reader42">reader42</a> 2 hours ago
+<div class="comment"><div class="commtext">Great work! Does the life counter rotate panels for each seat?</div>
+<div class="reply"><a href="item?id=4243">reply</a></div></div></td></tr></table></td></tr></table></center></body></html>""",
+  "4243": """<html><head><title>Reply thread | Hacker News</title></head><body><table>
+<tr><td><div class="commtext">Yes, every panel faces its player.</div></td></tr></table></body></html>""",
+}
 
 class H(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -54,6 +65,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, [q["search"][0], ["Magic: The Gathering", "Magic: The Gathering Arena"], ["Collectible card game", "Digital version"], []])
             return self.send(200, {"query": {"pages": {"1": {"title": "Magic: The Gathering", "extract": EXTRACT}}}})
         if p.startswith("/news.ycombinator.com/rss"): return self.send(200, RSS, "application/rss+xml")
+        if p.startswith("/news.ycombinator.com/item") and q.get("id", [""])[0] in HN_ITEM:
+            return self.send(200, HN_ITEM[q["id"][0]], "text/html; charset=utf-8")
         if p.startswith("/www.reddit.com/r/kindle/"): return self.send(200, ATOM, "application/atom+xml")
         if p.startswith("/html.duckduckgo.com/html"): return self.send(200, DDG, "text/html")
         if p.startswith("/example.com/article"): return self.send(200, ARTICLE, "text/html; charset=utf-8")

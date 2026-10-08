@@ -110,7 +110,8 @@ function M.new()
                 if not resp or resp.status ~= 200 then return ui.alert("Download failed", err or ("HTTP " .. resp.status)) end
                 local full = html.to_blocks(resp.body)
                 ui.pop()   -- close the summary view
-                reader.open({ header = feed_title, title = it.title, subtitle = it.link, blocks = full, actions = {
+                reader.open({ header = feed_title, title = it.title, subtitle = it.link, blocks = full,
+                    base = resp.url or it.link, actions = {
                     { "Export to Kindle documents", function()
                         local p = reader.export_txt("Articles", it.title, full, it.link)
                         ui.toast("Saved to " .. p:gsub("^/mnt/us/", ""))
@@ -122,7 +123,8 @@ function M.new()
             local p = reader.export_txt("Articles", it.title, blocks, it.link)
             ui.toast("Saved to " .. p:gsub("^/mnt/us/", ""))
         end }
-        reader.open({ header = feed_title, title = it.title, subtitle = sub, blocks = blocks, actions = actions })
+        reader.open({ header = feed_title, title = it.title, subtitle = sub, blocks = blocks, actions = actions,
+            base = it.link })
     end
 
     local function open_feed(url)

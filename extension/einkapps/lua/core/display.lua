@@ -63,7 +63,9 @@ function display.init()
         display.bpp = num(info, "BPP", 8)
         display.line = num(info, "lineLength", display.w * display.bpp / 8)
         display.xoff = num(info, "viewHoriOrigin", 0)
-        display.yoff = num(info, "viewVertOrigin", 0)
+        -- viewVertOrigin includes viewVertOffset, which is only FBInk's text-grid
+        -- centering (e.g. 4 px on the PW3); the real hidden-row offset is the rest.
+        display.yoff = num(info, "viewVertOrigin", 0) - num(info, "viewVertOffset", 0)
         display.inverted = num(info, "invertedGrayscale", 0) == 1
         display.rota = num(info, "currentRota", 0)
         local fbdev = os.getenv("EINK_FBDEV") or "/dev/fb0"
@@ -72,7 +74,8 @@ function display.init()
         local sw, sh = num(info, "screenWidth", display.w), num(info, "screenHeight", display.h)
         if sw < display.w + display.xoff or sh < display.h + display.yoff then
             -- The panel is rotated relative to the framebuffer; not supported.
-            error(string.format("unsupported framebuffer layout %dx%d rota %d", sw, sh, display.rota))
+            error(string.format("unsupported framebuffer layout %dx%d rota %d (view %dx%d+%d+%d) fbink -e: %s",
+                sw, sh, display.rota, display.w, display.h, display.xoff, display.yoff, info))
         end
         display.row = ffi.new("uint8_t[?]", display.w * 4)
     end

@@ -1,16 +1,47 @@
 -- Paginated text reader used by Wikipedia, RSS and DuckDuckGo.
--- reader.open{title=, blocks={ {kind="h"|"p"|"li", text=} }, subtitle=, actions={ {label, fn} }}
+-- reader.open{title=, blocks={ {kind="h"|"p"|"li", text=, links=} }, subtitle=, actions={ {label, fn} },
+--              base=, on_link=}
 -- Tap the right side (or swipe left) for the next page, left side for the
--- previous one.
+-- previous one. Underlined links (block.links from html.to_blocks) open with
+-- on_link(url), or reader.open_url by default; relative hrefs resolve against base.
 local ui = require("core.ui")
 local gfx = require("core.gfx")
 local store = require("core.store")
+local net = require("core.net")
+local html = require("core.html")
+local kindle = require("core.kindle")
 
 local dp = ui.dp
 local BLACK, WHITE, DARK, GRAY, LIGHT = gfx.BLACK, gfx.WHITE, gfx.DARK, gfx.GRAY, gfx.LIGHT
 
 local reader = {}
 local SIZES = { 26, 30, 34, 38, 44, 52 }
+
+-- Where each wrapped line of a block starts in its text, or nil if the lines
+-- can't be matched back (then the block's links just aren't tappable).
+local function line_starts(text, lines)
+    local starts, pos = {}, 1
+    for i, l in ipairs(lines) do
+        local st = text:find("%S", pos) or pos
+        if text:sub(st, st + #l - 1) ~= l then return nil end
+        starts[i] = st
+        pos = st + #l
+    end
+    return starts
+end
+
+-- The parts of block links that fall on one line: { {x0, x1, href, label} }
+local function line_links(f, text, links, st, line)
+    local out, en = {}, st + #line - 1
+    for _, lk in ipairs(links) do
+        local a, b = math.max(lk.s, st), math.min(lk.e, en)
+        if a <= b then
+            local x0 = f:width(text:sub(st, a - 1))
+            out[#out + 1] = { x0, x0 + f:width(text:sub(a, b)), lk.href, text:sub(a, b) }
+        end
+    end
+    return #out > 0 and out or nil
+end
 
 local prefs = nil
 local function get_prefs()
@@ -55,9 +86,11 @@ function reader.open(opts)
             local indent = (b.kind == "li") and dp(36) or 0
             local text = b.text
             local lines = f:wrap(text, width - indent)
+            local starts = b.links and line_starts(text, lines)
             if b.kind == "h" then y = y + dp(18) end
             for k, l in ipairs(lines) do
                 local item = { text = l, font = f, x = indent }
+                if starts then item.links = line_links(f, text, b.links, starts[k], l) end
                 if b.kind == "li" and k == 1 then item.bullet = true end
                 push_line(item, f.line_height)
             end
@@ -67,6 +100,13 @@ function reader.open(opts)
         if #pages == 0 then pages[1] = {} end
         scr.pages, scr.margin = pages, margin
         scr.layout_key = W .. "x" .. H .. ":" .. p.size
+    end
+
+    local function follow(href)
+        local url = opts.base and net.resolve(opts.base, href) or href
+        if not url:match("^https?://") then return ui.toast("Can't open " .. href) end
+        if opts.on_link then return opts.on_link(url) end
+        reader.open_url(url, { header = opts.header })
     end
 
     function scr:turn(d)
@@ -130,6 +170,13 @@ function reader.open(opts)
                 s:fill_circle(x - dp(20), y0 + it.y + it.font.ascent * 0.62, dp(6), BLACK)
             end
             it.font:draw_top(s, x, y0 + it.y, it.text, it.color or BLACK)
+            for _, lk in ipairs(it.links or {}) do
+                local ly = y0 + it.y + it.font.ascent + dp(4)
+                s:fill_rect(x + lk[1], ly, lk[2] - lk[1], dp(2), BLACK)
+                local href = lk[3]
+                ctx:hit(x + lk[1] - dp(8), y0 + it.y, lk[2] - lk[1] + dp(16), it.font.line_height,
+                    function() follow(href) end, nil, { label = lk[4], href = href })
+            end
         end
         -- footer: progress
         local ff = ui.font("sans", 24)
@@ -143,6 +190,32 @@ function reader.open(opts)
 
     ui.push(scr)
     return scr
+end
+
+-- Download a web page and show it in the reader. Links on it keep working;
+-- opts: header=, title= (if the page has none), actions(title, url, blocks)=, on_link=.
+function reader.open_url(url, opts)
+    opts = opts or {}
+    if not kindle.ensure_wifi() then return ui.alert("Offline", "Wi-Fi isn't connected.") end
+    ui.busy("Loading page…")
+    local resp, err = net.get(url, { Accept = "text/html,application/xhtml+xml" })
+    if not resp then return ui.alert("Couldn't load page", err) end
+    if resp.status ~= 200 then return ui.alert("Couldn't load page", "HTTP " .. resp.status) end
+    local ctype = resp.headers["content-type"] or ""
+    local blocks
+    if ctype:find("text/plain") then blocks = html.text_blocks(resp.body) else blocks = html.to_blocks(resp.body) end
+    if #blocks == 0 then blocks = { { kind = "p", text = "This page has no readable text (it may need JavaScript)." } } end
+    local t = resp.body:match("<[Tt][Ii][Tt][Ll][Ee][^>]*>(.-)</[Tt][Ii][Tt][Ll][Ee]>")
+    local title = t and html.strip(t) or opts.title or url
+    local page_url = resp.url or url
+    local actions = opts.actions and opts.actions(title, page_url, blocks) or {
+        { "Export to Kindle documents", function()
+            local p = reader.export_txt("Web", title, blocks, page_url)
+            ui.toast("Saved to " .. p:gsub("^/mnt/us/", ""))
+        end },
+    }
+    return reader.open({ header = opts.header, title = title, subtitle = page_url, blocks = blocks,
+        actions = actions, base = page_url, on_link = opts.on_link })
 end
 
 -- Write an article as a plain text file in the Kindle's documents folder so
