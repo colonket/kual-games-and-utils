@@ -1,6 +1,6 @@
 # KUAL Games & Utilities
 
-> **Written by AI.** All of the code, tests and documentation in this repository were written by [Claude Code](https://claude.com/claude-code), Anthropic's AI coding agent. I ([@colonket](https://github.com/colonket)) directed the work, tested it on a real Kindle, and decided what to merge. See [How this was made](#how-this-was-made).
+> **Written by AI.** All of the code, tests and documentation in this repository were written by [Claude Code](https://claude.com/claude-code), Anthropic's AI coding agent. The repository owner, [@colonket](https://github.com/colonket), directed the work, tested it on a real Kindle, and decided what to merge. See [How this was made](#how-this-was-made).
 
 A suite of touch apps for jailbroken Kindles, launched from KUAL:
 
@@ -161,7 +161,7 @@ Please report security problems privately as described in [SECURITY.md](SECURITY
 
 ## How this was made
 
-Every line of code, every test and all of the documentation here was written by [Claude Code](https://claude.com/claude-code), not by a person. That includes the Kindle display and touch layer, the Lichess and OGS clients, the WebSocket client, the simulator and its mock servers, the security fixes, and this README. My part was choosing what to build, running it on a Kindle Paperwhite 3, reporting what broke (with the device's logs), and deciding what to merge. Every commit except the merge commits carries a `Co-Authored-By: Claude` trailer, back to the first one.
+Every line of code, every test and all of the documentation here was written by [Claude Code](https://claude.com/claude-code), not by a person. That includes the Kindle display and touch layer, the Lichess and OGS clients, the WebSocket client, the simulator and its mock servers, the security fixes, and this README. The owner, @colonket, chose what to build, ran it on a Kindle Paperwhite 3, reported what broke (with the device's logs), and decided what to merge. Every commit except the merge commits carries a `Co-Authored-By: Claude` trailer, back to the first one.
 
 Two kinds of material weren't originated by Claude Code:
 
