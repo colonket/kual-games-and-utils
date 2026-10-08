@@ -39,9 +39,25 @@ end
 
 local REDIRECT = os.getenv("EINK_NET_REDIRECT")   -- simulator: route all traffic to a mock
 
+-- Scheme of the redirect target switched to WebSocket (http->ws, https->wss).
+local WS_REDIRECT = REDIRECT and (REDIRECT:gsub("^(%a+)://", function(s)
+    return (s:lower() == "https" and "wss" or "ws") .. "://"
+end))
+
+local DEFAULT_PORT = { http = 80, https = 443, ws = 80, wss = 443 }
+local TLS_SCHEMES = { https = true, wss = true }
+
 local function parse_url(url)
     if REDIRECT and not url:find(REDIRECT, 1, true) then
-        url = url:gsub("^%a+://", REDIRECT .. "/")
+        local sch = (url:match("^(%a+)://") or ""):lower()
+        if sch == "ws" or sch == "wss" then
+            -- wss://host/path -> ws://<redirect host>/host/path
+            if not url:find(WS_REDIRECT, 1, true) then
+                url = url:gsub("^%a+://", WS_REDIRECT .. "/")
+            end
+        else
+            url = url:gsub("^%a+://", REDIRECT .. "/")
+        end
     end
     local scheme, rest = url:match("^(%a+)://(.+)$")
     if not scheme then return nil, "bad url: " .. tostring(url) end
@@ -52,7 +68,7 @@ local function parse_url(url)
     path = path:gsub("#.*$", "")
     local host, port = hostport:match("^(.-):(%d+)$")
     host = host or hostport
-    port = tonumber(port) or (scheme == "https" and 443 or 80)
+    port = tonumber(port) or DEFAULT_PORT[scheme] or 80
     return { scheme = scheme, host = host, port = port, path = path }
 end
 net.parse_url = parse_url
@@ -70,12 +86,15 @@ function net.resolve(base, href)
     return origin .. dir .. href
 end
 
+-- Open a TCP connection (TLS-wrapped for https/wss) to a parsed URL.
+-- Returns a blocking socket with `timeout` set, or nil, err. Shared by
+-- requests, NDJSON streams and core/ws.lua.
 local function connect(u, timeout)
     local sock = socket.tcp()
     sock:settimeout(timeout)
     local ok, err = sock:connect(u.host, u.port)
     if not ok then sock:close() return nil, "connect " .. u.host .. ": " .. tostring(err) end
-    if u.scheme == "https" then
+    if TLS_SCHEMES[u.scheme] then
         if not ok_ssl then sock:close() return nil, "TLS not available (LuaSec missing)" end
         local params = {
             mode = "client",
@@ -104,6 +123,8 @@ local function connect(u, timeout)
     end
     return sock
 end
+
+net.connect_socket = connect
 
 local function send_all(sock, data)
     local i = 1
@@ -160,6 +181,9 @@ local function read_head(sock)
     end
     return status, headers
 end
+
+net.send_all = send_all
+net.read_head = read_head
 
 local function read_body(sock, headers, max_bytes)
     max_bytes = max_bytes or 16 * 1024 * 1024
