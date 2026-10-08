@@ -125,7 +125,7 @@ do
     eq(go.points_string(go.parse_points(s19, 19), 19), "ddpddppp", "roundtrip 19 (sorted, deduped)")
     eq(go.points_string({}, 9), "", "empty points")
     eq(go.coord_name(3, 15, 19), "D4", "coord D4"); eq(go.coord_name(8, 0, 19), "J19", "coord skips I")
-    eq(#go.star_points(19), 9, "19 hoshi"); eq(#go.star_points(13), 9, "13 hoshi")
+    eq(#go.star_points(19), 9, "19 hoshi"); eq(#go.star_points(13), 5, "13 hoshi")
     eq(#go.star_points(9), 5, "9 hoshi"); eq(#go.star_points(7), 0, "7 no hoshi")
     eq(go.star_points(9)[3], 40, "9x9 tengen")
 end

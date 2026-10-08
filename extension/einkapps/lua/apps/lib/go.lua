@@ -225,9 +225,10 @@ function go.star_points(size)
     local L = star_lines(size)
     if not L then return {} end
     local out = {}
-    if size == 9 then
-        -- corners plus centre
-        for _, p in ipairs({ { 2, 2 }, { 6, 2 }, { 4, 4 }, { 2, 6 }, { 6, 6 } }) do
+    if size == 9 or size == 13 then
+        -- corners plus centre (as on OGS; 13x13 side points aren't marked)
+        local lo, mid, hi = L[1], L[2], L[3]
+        for _, p in ipairs({ { lo, lo }, { hi, lo }, { mid, mid }, { lo, hi }, { hi, hi } }) do
             out[#out + 1] = p[2] * size + p[1]
         end
         return out
