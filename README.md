@@ -20,6 +20,38 @@ A suite of touch apps for jailbroken Kindles, launched from KUAL:
 
 Everything is written in Lua and runs on the **LuaJIT that ships with KOReader**, so there is nothing else to install.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/launcher.png" width="260" alt="App launcher"><br><sub>App launcher</sub></td>
+    <td align="center"><img src="docs/screenshots/lichess.png" width="260" alt="Lichess vs. Stockfish"><br><sub>Lichess vs. Stockfish</sub></td>
+    <td align="center"><img src="docs/screenshots/go.png" width="260" alt="Go (OGS), live 19×19"><br><sub>Go (OGS), live 19×19</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/mtg.png" width="260" alt="Life Counter, 4 players"><br><sub>Life Counter, 4 players</sub></td>
+    <td align="center"><img src="docs/screenshots/chess.png" width="260" alt="Chess vs. the built-in engine"><br><sub>Chess vs. the built-in engine</sub></td>
+    <td align="center"><img src="docs/screenshots/sudoku.png" width="260" alt="Sudoku"><br><sub>Sudoku</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/dice.png" width="260" alt="Dice & 8-Ball"><br><sub>Dice & 8-Ball</sub></td>
+    <td align="center"><img src="docs/screenshots/calculator.png" width="260" alt="Calculator"><br><sub>Calculator</sub></td>
+    <td align="center"><img src="docs/screenshots/clock.png" width="260" alt="Clock, flip style"><br><sub>Clock, flip style</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/weather.png" width="260" alt="Weather"><br><sub>Weather</sub></td>
+    <td align="center"><img src="docs/screenshots/wikipedia.png" width="260" alt="Wikipedia"><br><sub>Wikipedia</sub></td>
+    <td align="center"><img src="docs/screenshots/rss.png" width="260" alt="RSS & Reddit"><br><sub>RSS & Reddit</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/duckduckgo.png" width="260" alt="DuckDuckGo search keyboard"><br><sub>DuckDuckGo search keyboard</sub></td>
+    <td align="center"><img src="docs/screenshots/go_scoring.png" width="260" alt="Go (OGS), marking dead stones"><br><sub>Go (OGS), marking dead stones</sub></td>
+    <td align="center"><img src="docs/screenshots/settings.png" width="260" alt="Settings"><br><sub>Settings</sub></td>
+  </tr>
+</table>
+
+These are frames from the simulator at the Paperwhite 3's native 1072×1448, the same pixels the app writes to the e-ink panel, shown at half size. To regenerate them, run `tests/test_all.sh` and then `tools/screenshots.py`.
+
 ## Requirements
 
 - A jailbroken Kindle with **KUAL** and **KOReader** installed at `/mnt/us/koreader`. This was built and tested for the Paperwhite 3 (7th gen) on 5.16.2.1.1.
@@ -113,7 +145,7 @@ Then register it:
 - Add an entry to `lua/apps/registry.lua`.
 - Optionally add a line to `menu.json`.
 
-The repository includes a desktop simulator for scripted tests (`tests/sim.sh`, and `tests/test_all.sh` for the whole suite). It needs a local LuaJIT, LuaSocket and LuaSec.
+The repository includes a desktop simulator for scripted tests (`tests/sim.sh`, and `tests/test_all.sh` for the whole suite). It needs a local LuaJIT, LuaSocket and LuaSec. After a `test_all.sh` run, `tools/screenshots.py` refreshes the README screenshots in `docs/screenshots/`.
 
 ## Credits & licenses
 
